@@ -1,0 +1,48 @@
+object,low,high,currency,date_updated,source
+laptop,800,2500,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+cell phone,150,2000,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+tv,300,3000,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+keyboard,20,250,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+mouse,15,150,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+remote,10,60,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+book,10,60,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+clock,15,200,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+cup,5,30,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+bottle,2,6,AUD,2026-11-01,the developer's figure
+wine glass,5,40,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+bowl,5,40,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+knife,5,150,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+fork,2,20,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+spoon,2,20,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+scissors,5,30,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+vase,15,150,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+potted plant,15,120,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+teddy bear,15,60,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+chair,50,600,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+couch,400,3000,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+bed,300,3000,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+dining table,200,2000,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+backpack,30,250,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+handbag,40,500,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+suitcase,80,500,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+umbrella,15,80,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+tie,20,150,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+microwave,100,600,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+toaster,30,200,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+oven,500,3000,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+refrigerator,700,4000,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+sink,150,800,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+hair drier,30,400,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+toothbrush,3,250,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+sports ball,15,80,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+tennis racket,50,350,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+skateboard,50,250,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+frisbee,10,30,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+bicycle,300,3000,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+banana,0.4,1,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+apple,0.5,1.5,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+orange,0.5,1.5,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+sandwich,6,15,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+pizza,10,30,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+donut,2,5,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store
+cake,15,60,AUD,2026-10-23,rough estimate written when F9 was built; not checked against a store

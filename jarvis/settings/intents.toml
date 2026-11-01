@@ -1,0 +1,514 @@
+# The general intent router: every local intent JARVIS has,
+# as data. jarvis/router/router.py scores an utterance that no fixed phrase
+# matched against each intent below, offline: cue words (with Whisper's
+# mishearings tolerated by edit distance), then a slot taken from the words
+# left over. A clear winner is rewritten into its `template` -- a command the
+# existing local matchers already understand -- and run through the normal
+# pipeline (controller, policy, trust levels). The router never runs
+# anything itself, and neither does the online classifier.
+#
+# Per intent:
+#   name      what Live Activity shows ("understood as: <say>") and the
+#             classifier's label
+#   say       how she names it in "Did you mean ...?"
+#   description  one line for the online classifier
+#   need      groups of cue phrases; every group must match (any phrase in it)
+#   also      optional groups; each one matched raises the score
+#   avoid     phrases that rule the intent out
+#   slot      "" | rest | subject | number | object | city | topic
+#             rest: the words left over; after: every word after the cue, as said;
+#             subject: the words after "my";
+#             number: 0-100 ("forty", "max", "4p"); object: something the
+#             camera knows; city: after in/for/at
+#   slot_required  the intent needs its slot
+#   template  the command it becomes ({slot} is filled in)
+#   base      score when every need group matches (default 0.6); the also
+#             groups add up to 0.4 between them
+#   no_statements  a state change: ignored in a statement ("the TV is on mute")
+#   at_start  an order: the first need group must open the sentence (only
+#             stop words before it), so "when should I start revising" is
+#             never "open revising"
+
+[router]
+# One clear winner at or above run_score, and ahead of the next by
+# margin, runs. Two within margin, both at or above ask_score: "Did you
+# mean A or B?". One alone between ask_score and run_score: "Did you mean A?".
+run_score = 0.72
+ask_score = 0.55
+margin = 0.12
+# Each content word nobody explains takes this off (intents without a free slot).
+leftover_penalty = 0.12
+# How long "Did you mean ...?" waits for "yes" / "the first" / "no".
+clarify_seconds = 30
+# The online classifier's answer is used at or above run_confidence; between
+# ask_confidence and it she asks "Did you mean ...?" first.
+run_confidence = 0.75
+ask_confidence = 0.45
+classifier_max_tokens = 220
+# Intents the online classifier may never choose. The
+# camera opens only from his own words matched locally; a classifier reply
+# naming one of these is treated as a general question.
+never_classified = ["camera_look", "camera_on", "camera_tell"]
+# Words that never make an utterance look like a local command on their own
+# (so "what is gravity" goes straight to the normal answer, no classifier call).
+common_words = ["what", "when", "where", "which", "who", "how", "is", "are", "my", "me", "you", "the", "a", "tell", "show",
+                "about", "it", "this", "that", "do", "does", "did", "can", "please", "now", "in", "on", "of", "for", "to", "and"]
+# A how-to question is a question, never an order ("how do I
+# turn the volume up" is answered, not done). Utterances starting with these
+# are left to the normal answer.
+question_starts = ["how do i", "how do you", "how can i", "how to", "how would i", "how should i", "how does", "why does",
+                   "why do", "why is", "why are", "what happens if", "what happens when", "should i", "is it possible to",
+                   "can i", "is it safe to", "what's the best way to", "what is the best way to", "explain how", "teach me how"]
+# Words that make a sentence a statement when they come before the cue ("the
+# TV is on mute"): intents with no_statements = true ignore it then.
+statement_words = ["is", "are", "was", "were", "been", "being", "isn't", "aren't", "wasn't"]
+# Words that explain nothing: never leftovers, never part of a slot's start or end.
+stop_words = ["the", "a", "an", "to", "of", "for", "me", "please", "can", "could", "would", "will", "you", "u", "i", "is",
+              "are", "it", "this", "that", "on", "in", "at", "and", "now", "just", "do", "does", "did", "be", "so", "ok",
+              "okay", "hey", "hi", "um", "uh", "then", "right", "some", "up", "with", "kindly", "quickly", "again", "go",
+              "ahead", "want", "need", "like", "know", "yes", "yeah", "am", "was", "were", "what", "jarvis", "sir", "through",
+              "bit", "little", "for",
+              # Spoken filler and hedges ("I'm so uh, what are you exactly?").
+              "i'm", "im", "er", "erm", "hmm", "umm", "uhh", "uhm", "ahh", "well", "exactly", "actually", "basically", "literally", "honestly", "really",
+              "already", "mate", "buddy",
+              "notch", "tad", "touch", "slightly", "smidge", "bit", "more", "less"]
+# Whisper
+# glues these words to the next one; "trackingindian" -> "tracking indian".
+glued_prefixes = ["tracking"]
+# Whisper's spellings, fixed before scoring (whole words).
+[router.mishearings]
+ven = "when"
+venn = "when"
+wen = "when"
+vhen = "when"
+whan = "when"
+wat = "what"
+wot = "what"
+opennotepad = "open notepad"
+tellme = "tell me"
+brigthness = "brightness"
+volumn = "volume"
+wifi = "wifi"
+"wi-fi" = "wifi"
+"wi fi" = "wifi"
+precking = "tracking"
+trekking = "tracking"
+trecking = "tracking"
+tracting = "tracking"
+traking = "tracking"
+tracing = "tracking"
+
+[[intent]]
+name = "open_app"
+at_start = true
+say = "open an app"
+description = "open an installed app or a known website by name"
+need = [["open", "launch", "start", "run", "fire up", "bring up", "pull up", "boot up", "load up", "get me", "go to", "take me to"]]
+avoid = ["camera", "webcam", "my screen", "file", "folder", "document"]
+slot = "rest"
+slot_required = true
+template = "open {slot}"
+
+[[intent]]
+name = "web_search"
+at_start = true
+say = "search the web"
+description = "search Google in Chrome for something"
+need = [["search for", "search", "google", "look up", "search the web for", "search online for", "find online"]]
+avoid = ["youtube", "you tube", "file", "files", "screen", "memory", "my"]
+slot = "rest"
+slot_required = true
+template = "search for {slot}"
+
+[[intent]]
+name = "youtube_play"
+say = "play something on YouTube"
+description = "search YouTube in Chrome for music or a video"
+need = [["youtube", "you tube"]]
+also = [["play", "put on", "watch", "search", "find", "music", "song", "songs", "video", "videos"]]
+avoid = ["summarise", "summarize", "summary", "sum up"]
+slot = "rest"
+slot_required = true
+template = "play {slot} on youtube"
+
+[[intent]]
+name = "find_file"
+at_start = true
+say = "find a file"
+description = "find a file or document on this laptop by name"
+# "where is my quarterly budget report" was answered
+# from memory. These nouns (the second group, without "my") also tell a memory
+# question that a document is meant (jarvis/memory/commands.py).
+need = [["find", "locate", "look for", "where is", "where did i put", "where are", "where", "dig up", "search for", "pull up"],
+        ["file", "files", "document", "documents", "pdf", "folder", "doc", "docx", "resume", "cv", "passport", "report", "notes",
+         "itinerary", "spreadsheet", "presentation", "slides", "essay", "assignment", "invoice", "receipt", "csv", "photo",
+         "screenshot", "my"]]
+avoid = ["screen", "youtube", "camera", "online", "google", "the web"]
+slot = "subject"
+slot_required = true
+template = "find my {slot}"
+
+[[intent]]
+name = "weather"
+say = "check the weather"
+description = "the weather, temperature or rain, today or tomorrow, for a city"
+need = [["weather", "forecast", "temperature", "rain", "raining", "rainy", "hot", "cold", "warm", "sunny", "umbrella", "snow", "humid", "chilly", "freezing"]]
+# Whisper wrote "What's the weather in Perth?" as "Watch the weather in Perth".
+also = [["today", "tomorrow", "tonight", "outside", "this week"], ["will it", "is it", "going to", "gonna", "how", "what", "watch"]]
+avoid = ["explain", "why does", "how does", "how do", "hot dog", "cold call", "cold email"]
+slot = "city"
+template = "what's the weather{slot}"
+
+[[intent]]
+name = "time"
+say = "tell you the time"
+description = "the current time on the laptop"
+need = [["time", "clock"]]
+also = [["what", "tell", "current", "now", "the"]]
+avoid = ["my", "timer", "times", "time zone", "spend", "last time", "first time", "next time", "every time", "in sydney", "in london", "in new york", "in tokyo"]
+template = "what time is it"
+
+[[intent]]
+name = "date"
+say = "tell you the date"
+description = "today's date or day of the week"
+need = [["date", "day is it", "what day", "which day", "day today", "today's date", "day of the week", "what year", "which year", "year is it"]]
+also = [["today", "what", "current"]]
+avoid = ["update", "birthday", "exam", "my", "due"]
+template = "what's today's date"
+
+[[intent]]
+name = "remember"
+at_start = true
+say = "remember something"
+description = "remember a fact the developer tells her, stored on the laptop"
+need = [["remember that", "remember", "don't forget", "dont forget", "note that", "make a note", "keep in mind", "save that", "memorise", "memorize"]]
+avoid = ["what did you", "what do you", "do you remember", "what have you", "anything", "everything", "what you"]
+slot = "after"
+slot_required = true
+template = "remember {slot}"
+
+[[intent]]
+name = "recall"
+say = "tell you what I remember about it"
+description = "answer a question about something of the developer's own (a date, a plan, a place) from what he told her"
+need = [["when", "what", "where", "which", "what time", "what day", "tell me"], ["my"]]
+avoid = ["screen", "camera", "volume", "brightness", "wifi", "topics", "weather", "file", "files", "document", "folder", "resume", "passport",
+         "report", "itinerary", "spreadsheet", "pdf", "docx", "csv", "screenshot", "display", "monitor", "webcam", "explain"]
+slot = "subject"
+slot_required = true
+template = "when is my {slot}"
+
+[[intent]]
+name = "list_memory"
+say = "list what I remember"
+description = "list everything the developer asked her to remember"
+need = [["remember", "remembered", "memory", "memories", "memorised", "memorized", "you know about me", "told you", "recall", "saved"]]
+also = [["what", "everything", "all", "list", "tell me", "show", "anything"]]
+avoid = ["remember that", "remember to", "my exam", "forget", "delete"]
+template = "what do you remember"
+
+[[intent]]
+name = "forget"
+at_start = true
+say = "forget something"
+description = "forget something she remembered, or everything about one subject"
+need = [["forget", "delete", "remove", "erase", "wipe", "clear", "drop"]]
+avoid = ["file", "files", "folder", "everything you know", "all memories", "screen"]
+slot = "rest"
+slot_required = true
+template = "forget {slot}"
+
+[[intent]]
+name = "screen_read"
+say = "read your screen"
+description = "say which windows are open and read the main text on the screen (on the laptop, nothing sent)"
+need = [["screen", "display", "monitor", "looking at", "looking", "windows open", "on my desktop"]]
+also = [["what", "read", "tell", "show", "which", "whats"]]
+avoid = ["explain", "help", "brightness", "lock", "find", "camera", "webcam", "turn off", "turn on"]
+template = "what's on my screen"
+
+[[intent]]
+name = "screen_explain"
+say = "explain your screen"
+description = "explain what is on the screen online, after he checks the preview and confirms"
+need = [["explain", "help me with", "help me understand", "what does this mean", "make sense of", "describe", "walk me through"], ["screen", "this", "looking at", "this page", "this window", "display"]]
+avoid = ["camera", "webcam"]
+template = "explain my screen"
+
+[[intent]]
+name = "camera_look"
+say = "look through the camera"
+description = "one look through the webcam: say which objects she sees"
+need = [["see", "look", "in front of you", "camera", "webcam", "spot", "view", "scout"]]
+# "could you scout out what's around me with the webcam" scored too low.
+also = [["what", "can you", "do you", "anything", "now"], ["camera", "webcam"], ["around me", "around", "surroundings", "nearby", "near me", "in the room"]]
+avoid = ["screen", "turn on", "turn off", "switch", "keep", "price", "cost", "left", "right", "where", "iphone", "brand", "model", "person", "who"]
+template = "what do you see"
+
+[[intent]]
+name = "camera_on"
+no_statements = true
+say = "turn the camera on"
+description = "keep the webcam on with a live preview (needs a confirm)"
+need = [["camera", "webcam"], ["on", "start", "enable", "keep", "live"]]
+avoid = ["off", "stop", "disable"]
+template = "turn on the camera"
+
+[[intent]]
+name = "camera_off"
+no_statements = true
+say = "turn the camera off"
+description = "turn the live webcam off"
+need = [["camera", "webcam"], ["off", "stop", "disable", "close", "kill", "shut"]]
+template = "turn off the camera"
+
+[[intent]]
+name = "camera_tell"
+say = "tell you about what the camera saw"
+description = "tell him about an object from the last camera look: what it is, where it is, its rough price"
+need = [["tell me about", "describe", "what about", "more about", "info on", "details on"]]
+slot = "object"
+slot_required = true
+template = "tell me about the {slot}"
+
+[[intent]]
+name = "volume_set"
+no_statements = true
+say = "set the volume"
+description = "set the speaker volume to a percentage"
+need = [["volume", "sound"]]
+also = [["set", "change", "make", "put", "adjust", "turn", "to", "crank", "bump"]]
+slot = "number"
+slot_required = true
+template = "set the volume to {slot}"
+
+[[intent]]
+name = "volume_up"
+no_statements = true
+say = "turn the volume up"
+description = "turn the volume up a step"
+need = [["volume", "sound", "louder"], ["up", "louder", "increase", "raise", "higher", "more"]]
+avoid = ["down", "lower", "quieter"]
+template = "volume up"
+
+[[intent]]
+name = "volume_down"
+no_statements = true
+say = "turn the volume down"
+description = "turn the volume down a step"
+need = [["volume", "sound", "quieter"], ["down", "quieter", "decrease", "lower", "reduce", "less"]]
+avoid = [" up"]
+template = "volume down"
+
+[[intent]]
+name = "mute"
+no_statements = true
+say = "mute the sound"
+description = "mute the speakers"
+need = [["mute", "silence", "silent"]]
+avoid = ["unmute", "un mute"]
+template = "mute"
+
+[[intent]]
+name = "unmute"
+no_statements = true
+say = "unmute the sound"
+description = "unmute the speakers"
+need = [["unmute", "un mute", "sound back on"]]
+template = "unmute"
+
+[[intent]]
+name = "brightness_set"
+no_statements = true
+say = "set the brightness"
+description = "set the screen brightness to a percentage"
+need = [["brightness", "bright"]]
+also = [["set", "change", "make", "put", "adjust", "turn", "to"]]
+slot = "number"
+slot_required = true
+template = "set the brightness to {slot}"
+
+[[intent]]
+name = "brightness_up"
+no_statements = true
+say = "make the screen brighter"
+description = "screen brightness up a step"
+need = [["brightness", "brighter", "screen"], ["up", "brighter", "increase", "raise", "more"]]
+avoid = ["down", "dimmer", "dim"]
+template = "brightness up"
+
+[[intent]]
+name = "brightness_down"
+no_statements = true
+say = "dim the screen"
+description = "screen brightness down a step"
+need = [["brightness", "dimmer", "dim", "screen"], ["down", "dimmer", "dim", "decrease", "lower", "reduce", "less", "darker"]]
+avoid = [" up"]
+template = "brightness down"
+
+[[intent]]
+name = "wifi_off"
+no_statements = true
+say = "turn Wi-Fi off"
+description = "turn the Wi-Fi radio off (needs a confirm)"
+need = [["wifi", "wireless", "internet"], ["off", "disable", "disconnect", "kill", "stop"]]
+template = "turn wifi off"
+
+[[intent]]
+name = "wifi_on"
+no_statements = true
+say = "turn Wi-Fi on"
+description = "turn the Wi-Fi radio on (needs a confirm)"
+need = [["wifi", "wireless"], ["on", "enable", "connect", "back"]]
+avoid = ["off"]
+template = "turn wifi on"
+
+[[intent]]
+name = "lock"
+no_statements = true
+say = "lock the screen"
+description = "lock the laptop (needs a confirm)"
+need = [["lock"]]
+avoid = ["unlock", "lock screen wallpaper"]
+template = "lock the screen"
+
+[[intent]]
+name = "restart"
+no_statements = true
+say = "restart the laptop"
+description = "restart the laptop (needs two confirms)"
+need = [["restart", "reboot"]]
+avoid = ["jarvis", "the app", "yourself"]
+template = "restart"
+
+[[intent]]
+name = "shutdown"
+no_statements = true
+say = "shut down the laptop"
+description = "shut the laptop down (needs two confirms)"
+need = [["shut down", "shutdown", "power off", "turn off the laptop", "turn off the computer", "switch off"]]
+avoid = ["camera", "webcam", "wifi"]
+template = "shut down"
+
+[[intent]]
+name = "sleep"
+no_statements = true
+say = "go to sleep"
+description = "she stops listening until woken"
+need = [["sleep", "goodnight", "good night", "nap", "rest", "bed", "bedtime", "bed time", "lights out"]]
+avoid = ["i need", "i want", "can't sleep", "how to", "story", "stories", "routine", "tell me", "my bedtime", "bed sheets", "bed bugs"]
+template = "go to sleep"
+
+[[intent]]
+name = "intro"
+say = "introduce myself"
+description = "she introduces herself"
+# "a quick introduction", "who am I talking to", "who
+# you are" went online; "introduce yourself to the class" asked "Did you
+# mean...?". The audience ("to the class") is a free slot the intro ignores.
+# "who are you" / "what are you" moved to identity_who
+# (a short answer, not the whole intro).
+need = [["introduce", "introduction", "intro", "about yourself", "your name"]]
+avoid = ["change your name", "rename", "call you", "my name", "his name", "her name", "stand for", "stands for", "your name mean"]
+slot = "rest"
+template = "introduce yourself"
+
+# "What does Jarvis stand for" went online and Groq made
+# up an expansion; "Who you at" (Whisper's "who are you") went online. These
+# four are answered locally from intro.txt and [identity] (jarvis/actions/intro.py).
+[[intent]]
+name = "identity_who"
+say = "say who I am"
+description = "who or what she is"
+need = [["who are you", "who you are", "who r you", "who are u", "who you at", "who are ya", "who you r", "what are you",
+         "who am i talking to", "who am i speaking to", "who am i speaking with", "who is this", "who's this"]]
+avoid = ["what are you doing", "what are you up to", "what are you tracking", "what are you following", "what are you watching"]
+slot = "rest"
+template = "say who you are"
+
+[[intent]]
+name = "identity_stands_for"
+about_me = true
+say = "say what my name stands for"
+description = "what the name JARVIS stands for"
+need = [["stand for", "stands for", "short for", "full form", "acronym", "abbreviation", "name mean", "name means", "expand", "expansion"]]
+slot = "rest"
+template = "what does your name stand for"
+
+[[intent]]
+name = "identity_creator"
+about_me = true
+say = "say who made me"
+description = "who made or created her"
+need = [["who made", "who created", "who built", "who designed", "who programmed", "who invented", "who developed", "who wrote",
+         "your creator", "your maker", "your developer", "who owns", "who is your"]]
+also = [["you", "your"]]
+avoid = ["who is your favourite", "who is your favorite"]
+slot = "rest"
+template = "say who made you"
+
+[[intent]]
+name = "identity_abilities"
+about_me = true
+say = "say what I can do"
+description = "what she is able to do"
+need = [["what can you do", "what do you do", "what are you able to do", "what are your abilities", "your abilities",
+         "your features", "what can you help", "how can you help", "what are you capable of", "what are your skills",
+         "what else can you do", "what all can you do"]]
+# No slot: "what can you do in excel" is a question about Excel, not about her.
+base = 0.55
+template = "say what you can do"
+
+[[intent]]
+name = "why"
+say = "explain what I just did"
+description = "why she did her last action, from her own record"
+# "Explain what you just did" needed the online classifier.
+need = [["why", "how come", "reason", "explain what you", "what did you", "what have you"],
+        ["did", "do", "done", "that", "you", "opened", "did that"]]
+avoid = ["sky", "people", "is the"]
+template = "why did you do that"
+
+[[intent]]
+name = "topics_list"
+say = "list the topics I'm tracking"
+description = "list the news topics she is tracking"
+need = [["tracking", "tracked", "track", "topics", "following", "watching", "watch list"]]
+also = [["what", "which", "list", "show", "tell me"]]
+avoid = ["news", "headlines", "update", "untrack", "stop tracking"]
+template = "what am i tracking"
+
+[[intent]]
+name = "topics_check"
+say = "check the news on your topics"
+description = "check the news for the topics she is tracking"
+need = [["news", "headlines", "updates", "check"], ["topics", "topic", "tracked", "tracking"]]
+also = [["news", "headlines", "updates", "anything new", "any"], ["tracked", "tracking", "my"]]
+template = "any news on my topics"
+
+[[intent]]
+name = "topic_track"
+at_start = true
+say = "track a news topic"
+description = "start tracking a news topic"
+need = [["track", "follow", "keep an eye on", "keep track of", "monitor"]]
+avoid = ["what", "which", "stop", "untrack", "list", "my topics"]
+slot = "rest"
+slot_required = true
+template = "track {slot}"
+
+[[intent]]
+name = "briefing"
+say = "give you the briefing"
+description = "the morning briefing: weather and headlines"
+need = [["brief", "briefing", "rundown", "catch me up", "daily update", "morning update"]]
+also = [["give me", "catch me up", "can i get"], ["daily", "morning", "today", "quick", "today's"]]
+template = "brief me"
+
+[[intent]]
+name = "thanks"
+say = "say you're welcome"
+description = "he thanks her"
+need = [["thanks", "thank", "cheers", "appreciate", "ta", "thx"]]
+template = "thank you"

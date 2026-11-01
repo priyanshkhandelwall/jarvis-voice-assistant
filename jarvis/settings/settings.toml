@@ -1,0 +1,2303 @@
+# JARVIS settings (R17): every tunable number lives here, not in code.
+# Edit this file to change behaviour without touching code.
+
+[controller]
+# How long a permit stays valid after being issued, in seconds.
+permit_timeout_seconds = 30
+# F7 Section 5: how long a pending confirmation (L2/L3/L4) stays valid,
+# from when the preview was first issued. Section 5's own starting value
+# is 60 seconds.
+confirmation_timeout_seconds = 60
+# How often the controller thread checks for a Stop request, in seconds.
+stop_poll_interval_seconds = 0.05
+# How long the controller waits for a new event before looping again, in seconds.
+queue_get_timeout_seconds = 0.05
+# If a transition listener (e.g. F5's logbook) takes longer than this to
+# run, log a warning -- it runs on the controller's single worker thread,
+# so slowness here delays every subsequent event, including Stop.
+transition_listener_warn_seconds = 0.05
+
+[dashboard]
+# R8/4.2: bounded queue between the controller's worker thread and the
+# dashboard's own thread. If the dashboard falls behind, the oldest
+# queued UI message is dropped rather than ever blocking the controller.
+ui_queue_max_size = 200
+# How often the dashboard's own thread polls the bridge and gauges, in
+# seconds. Caps the UI refresh rate (R15).
+refresh_interval_seconds = 0.05
+# Gauges (CPU/RAM/Disk) and network rates only need to move a couple of
+# times a second; the fast loop above exists so state changes show up
+# within a tick, not to redraw these 20x/s.
+slow_panels_interval_seconds = 0.5
+# How often the STOP button's breathing glow flips (its own animation is
+# 600ms, so flipping faster than that just restarts it before it finishes).
+stop_glow_interval_seconds = 0.6
+# R15: warn when free memory drops below this percentage.
+low_memory_warning_free_percent = 15
+# F8/F9: a capture can be shorter than one refresh tick; its Sensor Array
+# row stays on at least this long after it started, so it is never missed.
+sensor_on_min_seconds = 1.5
+# R15: the RAM gauge turns red at once, but the warning (shown and spoken)
+# waits for this many slow ticks in a row below the threshold, and is said
+# at most once per cooldown.
+low_memory_consecutive_samples = 3
+low_memory_warning_cooldown_seconds = 300
+low_memory_warning_text = "Memory is running low, only {free} percent free. Close apps you don't need so the laptop doesn't slow down."
+# Locked design step: resizable native window, minimum size
+# only -- no fixed dimensions.
+window_min_width = 1100
+window_min_height = 700
+# "nominal" vs "elevated" status word thresholds for the sensor tiles
+# (CPU/RAM/Disk), percent used. Developer hasn't set specific numbers --
+# reasonable defaults, tunable here without touching code (R17).
+cpu_elevated_percent = 75
+ram_elevated_percent = 80
+disk_elevated_percent = 85
+# How many log rows the activity feed keeps on screen (R15: bounded).
+activity_feed_max_rows = 200
+# How long each JARVIS state stays on the central status pill. A typed
+# command walks WAITING -> LISTENING -> UNDERSTANDING -> SPEAKING -> WAITING
+# in a few milliseconds -- far too fast to read -- so each state is held
+# briefly. History: 0.4s per state was too laggy (1.4-2.3s of padding);
+# 0.03s was too fast to read. Now: up to `max` per state (readable), but a
+# longer chain is squeezed so the whole walk fits `chain_budget`, never
+# below `min`. (Each on-screen hold measures about 40ms longer than the
+# setting: the 50ms refresh tick plus render time.) Delays only what is drawn, never the controller itself.
+state_dwell_max_seconds = 0.25
+state_dwell_min_seconds = 0.13
+state_chain_budget_seconds = 0.7
+# Empty space above the Live Activity panel's divider, in logical px. Was
+# 100; 56 gives the activity list about 44px (~3 lines) more height.
+live_activity_top_spacer = 56
+# F2 missing-setup notes (voice output) shown once at startup, then they fade.
+startup_notice_seconds = 30
+# A spoken notice (low memory, a missing setup) waits at most this long for her
+# to be idle; it is always shown at once, and skipped aloud if she stays busy.
+notice_wait_seconds = 60
+# Refresh-loop errors only (never per-tick data). Relative to the project
+# root, inside the data folder (excluded from Git, R18); emptied each launch.
+diag_log_path = "jarvis_data/logs/dashboard_diag.log"
+
+[interpreter]
+# Spoken/shown when nothing matched (UNDERSTAND_FAILED).
+not_understood_text = "I don't understand that yet."
+#  A numbered list (files, apps, places, memories)
+# stays pickable for this long, through unrelated commands ("what time is
+# it"), until something is picked, a new list is shown, Stop or sleep.
+pick_valid_seconds = 120
+# A pick ("open number one", "open file number 1", "second") with no list
+# pending: answered locally, never an app search for "number one".
+no_list_text = "There's no list to pick from right now. Say 'find' and a file name first."
+# The typed/spoken word that means "confirm" (F7, Section 5).
+confirm_word = "confirm"
+# Removed before the local matchers see a command (the
+# words sent online are left as said). Phrases first, then single words.
+# Her name is also removed at the start, or at the end after a comma.
+filler_phrases = ["can you", "could you", "would you", "will you", "for me", "right now", "i want you to"]
+# Whisper's hesitations ("Uhh, why did you Umm do that?") asked "Did you mean...?".
+filler_words = ["please", "sir", "kindly", "actually", "just", "now", "pls", "um", "umm", "uh", "uhh", "uhm", "erm", "hmm", "ahh"]
+# "This is so annoying, nothing is working, open
+# notepad" went online. A command is found anywhere in what was said when one
+# of these verbs starts a clause: at the start, after punctuation, or after
+# only command_leads words ("can you please open ..."). Verb -> what the local
+# matchers see. "how do I open chrome" or "I can't open it" never count.
+command_verbs = { "open up" = "open", "pull up" = "open", "bring up" = "open", "fire up" = "open", "load up" = "open", open = "open", launch = "open", start = "open", run = "open", find = "find", track = "track", "start tracking" = "start tracking", "stop tracking" = "stop tracking", "keep track of" = "keep track of", turn = "turn", set = "set", mute = "mute", unmute = "unmute", lock = "lock", restart = "restart", reboot = "reboot", "shut down" = "shut down", shutdown = "shutdown", increase = "increase", decrease = "decrease", lower = "lower", raise = "raise", dim = "dim", enable = "enable", disable = "disable", switch = "switch", volume = "volume", brightness = "brightness", play = "play", summarise = "summarise", summarize = "summarise", read = "read", "what's in" = "what's in", "whats in" = "what's in" }
+command_leads = ["can", "could", "would", "will", "you", "u", "please", "pls", "kindly", "just", "now", "and", "then", "so", "ok", "okay", "hey", "i", "want", "need", "to", "go", "ahead", "quickly", "sir", "jarvis", "for", "me", "right", "away", "also",
+                 # Whisper's "Shut up" ("Shader, then please open Chrome")
+                 "shader", "shutter", "shatter", "shudder"]
+# Words right after a verb that mean it isn't a command ("find out who won").
+command_not_after = ["out", "up on", "about"]
+
+[filesystem]
+# R9: the one shared path check every module must call. Env vars are
+# expanded (%USERPROFILE%, %OneDrive%, ...) so this works regardless of
+# the actual username or drive layout -- never a hardcoded absolute path.
+#
+# Anything that CHANGES files (create, write, save, rename, move, copy,
+# delete) works only inside these folders. The developer-approved list
+# Documents, Downloads, Desktop, and the JARVIS project
+# folder itself (added automatically in code, not listed here, since its
+# absolute path depends on where the project happens to be checked out).
+approved_folders = [
+    "%USERPROFILE%\\Documents",
+    "%USERPROFILE%\\Downloads",
+    "%USERPROFILE%\\Desktop",
+]
+# Read-only actions (search, open, show) can reach any folder EXCEPT
+# these. Developer-approved list: only the Pictures folder
+# (Camera Roll/Screenshots are subfolders of it, so protecting Pictures
+# itself already covers them -- no password manager or similar data
+# exists on this laptop, so nothing else is protected). Also checks the
+# OneDrive-redirected Pictures folder, if OneDrive is set up, since that
+# is a common alternate location for the same folder.
+protected_folders = [
+    "%USERPROFILE%\\Pictures",
+    "%OneDrive%\\Pictures",
+]
+# Inside the project, relative to it (R9). Was F16b's own browser profile,
+# removed with JARVIS's own browser.
+protected_project_folders = []
+
+[app_finder]
+# F3: minimum fuzzy-match score (0-1) for a Start Menu shortcut or known
+# alias to count as a match. Below this, JARVIS says she can't find it.
+match_threshold = 0.55
+# A name that matches no app or site this closely (0-1, or the
+# same consonants) gets "Did you mean Claude?"; anything less is searched for
+# in Chrome ("I couldn't find an app called X, so I've searched for it").
+site_guess_ratio = 0.6
+not_found_search = "I couldn't find an app called {name}, so I've searched for it in Chrome."
+not_found_no_chrome = "I couldn't find an app called {name}."
+# Launch only if the best match scores at least this AND is more than
+# ambiguity_margin ahead of the next app; otherwise she lists the top 3 and
+# asks which one ("vs code" opened Discord).
+launch_threshold = 0.75
+ambiguity_margin = 0.1
+# App names are also
+# matched word by word. Two words of at least token_min_length letters are
+# the same word when 1 - edits/length is at least token_similarity
+# ("virtual" ~ "visual" = 0.71). Shorter words must match exactly.
+token_min_length = 5
+token_similarity = 0.7
+# R12 verification: how long to wait for a new window/process to appear
+# after launching, and how often to poll.
+verify_timeout_seconds = 6.0
+verify_poll_interval_seconds = 0.25
+# Windows Store / UWP apps (Camera, Photos, Clock ...) have no Start Menu
+# .lnk; they are read from shell:AppsFolder once in the background and kept
+# for this long before being read again.
+store_apps_cache_seconds = 600
+# Said after an "open Chrome and search X" phrasing the F16b search matcher missed.
+search_not_built_text = "To search the web, say search and what you want, for example: search best pizza in Sydney."
+
+[app_finder.aliases]
+# Spoken nicknames -> the exact Start Menu name. An exact alias always
+# wins; add your own the same way.
+"vs code" = "Visual Studio Code"
+vscode = "Visual Studio Code"
+code = "Visual Studio Code"
+"visual studio code" = "Visual Studio Code"
+chrome = "Google Chrome"
+"google chrome" = "Google Chrome"
+
+[app_finder.categories]
+# ("Get the music app going" -> "I couldn't find an app
+# called music app"). A kind of app -> the installed apps that are one, in
+# order of preference (Start Menu names). The first one installed opens; if
+# none is installed, it is searched for as before.
+"music app" = ["Spotify", "Media Player", "Groove Music", "iTunes"]
+"music player" = ["Spotify", "Media Player", "Groove Music", "iTunes"]
+browser = ["Google Chrome", "Microsoft Edge", "Firefox"]
+"web browser" = ["Google Chrome", "Microsoft Edge", "Firefox"]
+"notes app" = ["Notepad", "Sticky Notes", "OneNote"]
+"note app" = ["Notepad", "Sticky Notes", "OneNote"]
+"calculator app" = ["Calculator"]
+"text editor" = ["Notepad", "Visual Studio Code"]
+"photos app" = ["Photos"]
+"photo app" = ["Photos"]
+"video player" = ["Media Player", "Movies & TV", "VLC media player"]
+"email app" = ["Outlook", "Mail"]
+"mail app" = ["Outlook", "Mail"]
+
+[app_finder.bare_names]
+# A bare app name said on its own ("VS Code", "Chrome") opens
+# it. Only these exact names (plus every alias, system app and known site
+# above and below) count, so a sentence that merely mentions an app never
+# opens anything. Name -> what to open.
+spotify = "spotify"
+discord = "discord"
+"microsoft edge" = "microsoft edge"
+edge = "microsoft edge"
+"file explorer" = "file explorer"
+camera = "camera"
+photos = "photos"
+settings = "settings"
+"microsoft word" = "word"
+excel = "excel"
+powerpoint = "powerpoint"
+outlook = "outlook"
+teams = "teams"
+
+[app_finder.system_app_aliases]
+# Common Windows apps that may have no Start Menu .lnk shortcut but are
+# directly launchable by name (os.startfile resolves these via PATH,
+# same as typing them into Run).
+notepad = "notepad.exe"
+calculator = "calc.exe"
+calc = "calc.exe"
+paint = "mspaint.exe"
+explorer = "explorer.exe"
+"task manager" = "taskmgr.exe"
+"control panel" = "control.exe"
+
+[app_finder.website_fallbacks]
+# Names that are really websites, not installed apps -- checked only
+# after no installed app matches (F3: "checks for an installed app
+# first"). Always opened in Chrome specifically, never the default
+# browser.
+# Also the known sites for "open X on Chrome" / "X in Chrome". Names are
+# matched with spaces removed and small mishearings allowed ("chat gpd").
+youtube = "https://www.youtube.com"
+gmail = "https://mail.google.com"
+"google maps" = "https://maps.google.com"
+github = "https://github.com"
+chatgpt = "https://chatgpt.com"
+google = "https://www.google.com"
+wikipedia = "https://www.wikipedia.org"
+"google drive" = "https://drive.google.com"
+whatsapp = "https://web.whatsapp.com"
+claude = "https://claude.ai"
+gemini = "https://gemini.google.com"
+perplexity = "https://www.perplexity.ai"
+linkedin = "https://www.linkedin.com"
+netflix = "https://www.netflix.com"
+spotify = "https://open.spotify.com"
+reddit = "https://www.reddit.com"
+instagram = "https://www.instagram.com"
+facebook = "https://www.facebook.com"
+twitter = "https://x.com"
+amazon = "https://www.amazon.com.au"
+notion = "https://www.notion.so"
+canva = "https://www.canva.com"
+figma = "https://www.figma.com"
+"google docs" = "https://docs.google.com"
+"google calendar" = "https://calendar.google.com"
+"stack overflow" = "https://stackoverflow.com"
+copilot = "https://copilot.microsoft.com"
+
+[app_finder.site_names]
+# How she says and shows each site ("Opening ChatGPT in
+# Chrome."), never its URL. A site not listed is said in title case.
+youtube = "YouTube"
+gmail = "Gmail"
+"google maps" = "Google Maps"
+github = "GitHub"
+chatgpt = "ChatGPT"
+google = "Google"
+wikipedia = "Wikipedia"
+"google drive" = "Google Drive"
+whatsapp = "WhatsApp"
+claude = "Claude"
+gemini = "Gemini"
+perplexity = "Perplexity"
+linkedin = "LinkedIn"
+netflix = "Netflix"
+spotify = "Spotify"
+reddit = "Reddit"
+instagram = "Instagram"
+facebook = "Facebook"
+twitter = "X"
+amazon = "Amazon"
+notion = "Notion"
+canva = "Canva"
+figma = "Figma"
+"google docs" = "Google Docs"
+"google calendar" = "Google Calendar"
+"stack overflow" = "Stack Overflow"
+copilot = "Copilot"
+
+[app_finder.site_mishearings]
+# Whisper's spellings of known site names -> the site (
+# "chat chip it", "Chad GPT"). Matched with spaces removed; add your own.
+"chat chip it" = "chatgpt"
+"chad gpt" = "chatgpt"
+"chad gbt" = "chatgpt"
+"chat gbt" = "chatgpt"
+"chat gpd" = "chatgpt"
+"chat g p t" = "chatgpt"
+"chatty pt" = "chatgpt"
+"chat cpt" = "chatgpt"
+"chat jpt" = "chatgpt"
+"chad chip it" = "chatgpt"
+"openchat gpt" = "chatgpt"
+"you tube" = "youtube"
+"g mail" = "gmail"
+"get hub" = "github"
+"git hub" = "github"
+
+[file_finder]
+# F4: minimum score (0-1) for a filename to count as a likely match. Was 0.5,
+# which let "resume" match "resource.pyi"/"resample.pyi" (fuzzy ratio 0.71)
+# and, with the leftover word "my" from "find my resume", 0.59.
+match_threshold = 0.8
+# Below an exact / whole-word / substring hit, a name only scores if its
+# fuzzy similarity to the query is at least this -- typo tolerance, not
+# "different word with similar letters".
+fuzzy_min_ratio = 0.85
+# Spoken filler removed from a query before matching ("find my resume").
+query_filler_words = ["my", "the", "a", "an", "file", "files", "folder", "folders", "document", "documents", "for", "me", "please", "called", "named", "of",
+                      # "Find UM, my budget stuff please" searched for "um budget stuff" (Eigen's UmfPack headers).
+                      "um", "umm", "uh", "er", "erm", "hmm", "stuff", "things", "thing", "some", "any", "all", "whatever"]
+# "find X folder" searches folder names only; otherwise files and folders.
+folder_words = ["folder", "folders", "directory"]
+# Folders whose name starts with "." (.vscode, .codex, .cache ...) hold tool
+# internals, not the developer's own files -- skipped while indexing.
+skip_hidden_directories = true
+# Office lock and temporary files (open documents leave these next to them).
+skip_file_prefixes = ["~$", ".~lock.", "~wrl"]
+# ("Find Budget" -> 13 matches, mostly JARVIS's own
+# backup copies of budget.py): files ending like this are never indexed.
+skip_file_suffixes = [".bak"]
+# JARVIS's own folders, relative to the project root: never
+# walked, so "find" only lists his files. Paths, not bare names -- a folder
+# of his called "models" elsewhere is still found.
+excluded_project_folders = ["docs/backups", "docs/spec-backups", "test_runs", "venv", "models", "jarvis_data", "submission",
+                            # "find budget" offered the e2e run's groq_budget.json.
+                            "tests/e2e/results"]
+# ("find my report" listed make_report.py,
+# final_report.rmd and final_report.html next to Report.pdf). His documents
+# come first; code and build files are listed only when he names their kind
+# ("find the python file report") or when no document matches. Then exact
+# names, whole-word names, partial names; then the newest modified.
+document_suffixes = [".pdf", ".docx", ".doc", ".xlsx", ".xls", ".csv", ".pptx", ".ppt", ".txt", ".md", ".rtf", ".odt", ".ods", ".odp",
+                     ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".heic", ".webp", ".tif", ".tiff"]
+code_suffixes = [".py", ".pyi", ".pyw", ".rmd", ".r", ".html", ".htm", ".js", ".ts", ".jsx", ".tsx", ".json", ".ipynb", ".log", ".css",
+                 ".java", ".c", ".cpp", ".h", ".hpp", ".cs", ".go", ".rs", ".xml", ".yml", ".yaml", ".toml", ".ini", ".cfg", ".sh",
+                 ".bat", ".ps1", ".sql", ".tex", ".lock", ".map", ".o", ".obj", ".class", ".pyc"]
+# A kind he names, and the suffixes it means (the word is not part of the name searched for).
+type_words = { python = [".py", ".pyw", ".ipynb"], py = [".py", ".pyw"], notebook = [".ipynb"], jupyter = [".ipynb"], rmarkdown = [".rmd"], rmd = [".rmd"], html = [".html", ".htm"], webpage = [".html", ".htm"], javascript = [".js", ".jsx"], json = [".json"], log = [".log"], code = [".py", ".pyw", ".ipynb", ".rmd", ".r", ".js", ".ts", ".jsx", ".tsx", ".java", ".c", ".cpp", ".h", ".cs", ".go", ".rs", ".html", ".css", ".sql", ".sh", ".ps1", ".bat"], script = [".py", ".pyw", ".r", ".js", ".ps1", ".bat", ".sh"], source = [".py", ".pyw", ".r", ".rmd", ".js", ".ts", ".java", ".c", ".cpp", ".h", ".cs", ".go", ".rs"] }
+# While a search scans the index it reports the running match count to the
+# activity panel, at most this often (seconds).
+search_progress_interval_seconds = 0.15
+# DEFAULT (Section 6): a background-refreshed index, not a full scan per
+# search, because a slow secondary drive would make per-search scanning
+# too slow. How often the index rebuilds, in seconds.
+refresh_interval_seconds = 300
+# How many candidates to show when there's more than one match.
+max_results_shown = 5
+# Directory names skipped entirely while building the index (case
+# insensitive) -- noisy, not personal files, and often huge (Windows,
+# Program Files) or slow to traverse for no benefit (node_modules, .git).
+excluded_directory_names = [
+    "windows", "program files", "program files (x86)", "programdata",
+    "$recycle.bin", "node_modules", ".git", "__pycache__", "venv",
+    ".venv", ".cache", "appdata", "site-packages",
+]
+# The typed/spoken phrase that starts a search, and how "open <selection>"
+# is recognised for picking one of several listed matches.
+find_command_prefix = "find "
+verify_timeout_seconds = 6.0
+verify_poll_interval_seconds = 0.25
+# "open number two" picked budget.py, and
+# Windows' "open" for .py is py.exe -- the script RAN. Opening a file must never
+# run code: files with these extensions are shown, selected, in File Explorer.
+runs_when_opened = [".py", ".pyw", ".pyz", ".bat", ".cmd", ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh",
+                    ".hta", ".exe", ".com", ".scr", ".msi", ".msp", ".cpl", ".reg", ".jar", ".appref-ms", ".application",
+                    ".pif", ".sct", ".inf", ".ws", ".msc"]
+shown_not_run = "{name} is a program or script, and opening it would run it, so I've shown it in File Explorer instead."
+# macOS: these also run when opened, and Finder replaces File Explorer.
+runs_when_opened_mac = [".sh", ".command", ".tool", ".app", ".pkg", ".scpt", ".workflow"]
+shown_not_run_mac = "{name} is a program or script, and opening it would run it, so I've shown it in Finder instead."
+# A file no app is set to open (no extension, an unknown one): Windows would
+# show its "Pick an app" dialog and she would wait on it.
+shown_no_app = "No app is set to open {name}, so I've shown it in File Explorer instead."
+shown_no_app_mac = "No app is set to open {name}, so I've shown it in Finder instead."
+
+[small_talk]
+#. Local, cached audio.
+thanks_words = ["thanks", "thank", "thankyou", "thanku", "cheers", "ta", "thx", "appreciate", "appreciated", "it", "great", "perfect", "nice", "brilliant", "awesome", "good"]
+thanks_roots = ["thank", "cheers", "ta", "thx", "appreciate"]
+padding_words = ["you", "u", "so", "very", "much", "a", "lot", "mate", "man", "buddy", "again", "really", "for", "that", "the", "help", "everything", "all", "oh", "ok", "okay", "and", "just", "sir", "heaps",
+                 "then", "sounds", "fair", "enough", "now"]
+ack_words = ["ok", "okay", "alright", "all", "right", "cool", "got", "it", "sure", "fine", "noted", "understood", "k", "kk", "great", "nice", "perfect", "good"]
+welcome_replies = ["You're welcome.", "Any time.", "Happy to help.", "No problem."]
+ack_replies = ["Okay.", "Alright."]
+# "How are you doing today?" became a live web search
+# and opened Google in Chrome. Asked how she is, she answers here.
+how_are_you_phrases = ["how are you", "how are you doing", "how are you going", "how is it going", "hows it going", "how's it going",
+                       "how are things", "how have you been", "how do you do", "how you doing", "you alright", "are you okay",
+                       "are you ok", "are you alright", "how are you feeling", "what's up", "whats up", "how's your day", "hows your day",
+                       "how is your day", "how's your day going", "how is your day going"]
+# Words after the question that change nothing ("how are you doing today, Jarvis").
+how_are_you_tail_words = ["today", "tonight", "this morning", "this evening", "now", "mate", "buddy", "man", "then", "there", "sir", "so", "far"]
+how_are_you_replies = ["I'm good, thanks. What can I do for you?", "All good here. What do you need?", "Doing well, thanks. What's next?"]
+#. A compliment is
+# answered here, varied, from cached audio. It counts when, with her name,
+# padding_words and these intensifiers dropped, the sentence is one of the
+# compliment_phrases, or "you are" / "that was" + only praise words.
+compliment_phrases = ["good job", "great job", "nice job", "well done", "nice work", "great work", "good work", "nice one", "good one",
+                      "you rock", "love you", "i love you", "you're the best", "you are the best", "youre the best", "best assistant ever",
+                      "you're a legend", "you are a legend", "you're a genius", "you are a genius", "good girl", "you nailed it", "nailed it"]
+compliment_starts = ["you are", "you're", "youre", "ur", "you were", "that was", "that's", "thats", "you've been", "you have been", "you're being"]
+praise_words = ["awesome", "amazing", "great", "brilliant", "fantastic", "smart", "clever", "helpful", "cool", "incredible", "excellent",
+                "perfect", "good", "wonderful", "superb", "genius", "legend", "best", "the", "a", "an", "lifesaver", "life", "saver", "star",
+                "impressive", "fast", "quick", "useful", "kind", "sweet", "nice", "lovely", "outstanding", "magnificent", "fabulous", "epic"]
+intensifiers = ["so", "very", "really", "truly", "super", "pretty", "quite", "absolutely", "totally", "seriously", "honestly", "literally", "such",
+                # A swear used only to intensify praise (see [rudeness] praise_intensifiers).
+                "fucking", "fuckin", "freaking", "frickin", "fricking", "friggin", "bloody", "effing", "damn", "damned", "hella"]
+compliment_replies = ["Thank you, {name}.", "Thanks, {name}. Happy to help.", "That's kind of you, {name}.", "Thank you, {name}. I appreciate that."]
+
+[greeting]
+# Boundaries for time-of-day greetings, 24-hour clock.
+morning_ends_hour = 12
+afternoon_ends_hour = 17
+# F2 (decision F): she greets only when greeted, answered
+# locally (no Groq). A trailing "jarvis" is ignored ("hello jarvis").
+phrases = ["hello", "hi", "hey", "hiya", "good morning", "good afternoon", "good evening", "morning", "evening"]
+reply = "Good {period}. How can I help?"
+# "good afternoon to you", "morning everyone" -- still a greeting.
+tail_words = ["to", "you", "there", "everyone", "all", "mate", "sir", "buddy", "friend", "again", "today"]
+
+# -- The wake greeting (redesigned) -------------------------------
+# Spoken on EVERY wake (wake word, wake phrase, hotkey, typed) and shown in
+# Live Activity. Picked at random, locally, never online, from
+# [greeting.pools] below. {name} is [user] name.
+# Time bands, by the hour each one STARTS (24-hour clock). Late night runs
+# from late_night_from round midnight to early_morning_from.
+early_morning_from = 5
+morning_from = 9
+afternoon_from = 12
+evening_from = 17
+late_night_from = 21
+# Woken again within this many minutes of going to sleep: a "welcome back" line.
+welcome_back_minutes = 30
+# None of the last this-many greetings is said again.
+no_repeat_count = 5
+# Said when the pool that applies is missing or empty.
+fallback = "Hello, {name}. How can I help?"
+# Remembers (across restarts) the last few greetings, the day of the last
+# wake and when she last went to sleep -- nothing else. Data folder (R18).
+state_path = "jarvis_data/greeting_state.json"
+
+[greeting.pools]
+# Which pool, in order: welcome_back (woken within welcome_back_minutes of
+# sleeping), late_night (21:00-04:59), first_wake (first wake of the day;
+# a day starts at early_morning_from), then the time band. Keep each line
+# short (about 12 words at most). Edit freely.
+early_morning = ["Morning, {name}. Early start today?", "Up early, {name}. What's first?", "Good morning. Let's get going."]
+morning = ["Good morning, {name}. What are we doing today?", "Morning, {name}. Ready when you are.", "Hey {name}. What's on the list?"]
+afternoon = ["Good afternoon, {name}. What can I do?", "Afternoon, {name}. How's the day going?", "Hey {name}. What do you need?"]
+evening = ["Good evening, {name}. How can I help?", "Evening, {name}. What's next?", "Hey {name}. Let's get it done."]
+late_night = ["Burning the midnight oil, {name}?", "Late one tonight. What do you need?", "Still up, {name}? I'm here."]
+first_wake = ["Morning, {name}. Fresh start. What's first?", "Good to see you, {name}. Let's begin."]
+welcome_back = ["Welcome back, {name}.", "Back already? What's up?", "Hey again, {name}."]
+# Time-neutral lines, used only when every line of the pool above was among
+# the last no_repeat_count greetings (the pools above have 2-3 lines each,
+# too few to avoid 5 repeats on their own).
+anytime = ["Hi, {name}. What can I do?", "I'm here, {name}. What's up?", "Ready, {name}. What's next?", "Hello, {name}. What do you need?", "Hey {name}. I'm listening.", "Hi {name}. Where do we start?"]
+
+[user]
+# The developer's name, used in the wake greeting.
+name = "Priyansh"
+
+[identity]
+# F1 (log: "What does Jarvis stand for" went online and Groq
+# invented "Just A Reasonable Intelligent Virtual Assistant"). Answered locally
+# (jarvis/actions/intro.py); the expansion is read from intro.txt itself.
+creator = "Priyansh"
+stands_for_reply = "JARVIS stands for {expansion}."
+creator_reply = "{creator} created me."
+# "who are you": two sentences of the locked intro, from this one (1-based;
+# sentence 1 is "Hello everyone.", a greeting to an audience).
+who_from_sentence = 2
+who_sentence_count = 2
+abilities_reply = "I can open apps, find files, read and summarise documents, read your screen, look through the camera, remember things for you, check the weather and the news, search the web, and change the volume and brightness."
+# Added to every online prompt, so Groq never invents another expansion.
+prompt_rule = "Your name JARVIS stands for exactly \"{expansion}\"; never give any other expansion. You were created by {creator}."
+
+[conversation]
+# Conversation mode (developer-approved; merges F2 and F15).
+# She starts SLEEPING. Any of these wakes her -- spoken (matched against
+# the local transcript; the wake-word model also listens for "Hey JARVIS")
+# or typed. Punctuation and case are ignored; a transcript that starts
+# with a wake phrase counts.
+wake_phrases = ["wake up jarvis", "jarvis wake up", "hey jarvis"]
+# Fuzzy name (Whisper heard "Johnless", "Javis",
+# "Charvis"). A word counts as her name if it is in this list, or is within
+# name_max_edit_distance letters of "jarvis" (only for words of at least
+# name_min_length letters, so "is"/"job" never count).
+name_variants = ["jarvis", "javis", "jarvas", "jarves", "jarvus", "jarviss", "jarvice", "charvis", "chavis", "jervis", "johnless", "travis", "service", "harvis", "garvis", "darvis", "jaavis"]
+name_max_edit_distance = 2
+name_min_length = 4
+# Fuzzy wake forms, each needing a name-like word: "<verb> up <name>",
+# "<name> <verb> up", "welcome <name>", "hey <name>". "make up" and
+# "welcome" are common mishearings of "wake up". The phrase may start at
+# the first or second word ("okay, wake up Jarvis").
+wake_verbs = ["wake", "make", "wakes", "woke"]
+wake_greeting_words = ["hey", "hi", "hello", "okay", "ok", "welcome"]
+# "Wake up" while she is already AWAKE: answered locally.
+already_awake_reply = "I'm already awake."
+# "Go to sleep" -- handled locally, never sent online. A leading or
+# trailing "jarvis" is ignored ("goodnight jarvis", "jarvis go to sleep").
+sleep_phrases = ["go to sleep", "sleep", "goodnight", "good night", "time to sleep", "go to sleep now", "sleep now", "good night then", "go sleep", "goto sleep", "got to sleep", "time for sleep", "time to go to sleep", "you can sleep", "you can go to sleep"]
+# A typed "got to sleep" went online. A phrase with "sleep" in it
+# also matches within this many letters (Whisper/typos: "go to sleap", "gone to sleep").
+# Only phrases containing "sleep" are matched loosely, so "good light" never sleeps.
+sleep_max_edit_distance = 2
+# Whisper mishearings of "go to sleep" with no "sleep" in them ("GOTA SLIDE").
+sleep_mishearings = ["gota slide", "go to slide", "gotta sleep", "gotta slide", "got to slide", "goto slide", "go to sleet"]
+sleep_reply = "Goodnight."
+# ("Thank you, go to sleep" and "Hijar, VS Code to
+# Sleep" went online): a sleep phrase at the END of a longer sentence sleeps
+# too, and so does any sentence ending "... to sleep". These words may come
+# after the phrase ("go to sleep now please").
+sleep_tail_words = ["now", "please", "then", "thanks", "thank", "you", "for", "a", "while", "bit", "ok", "okay"]
+# A sentence starting with one of these is a question or another command,
+# never sleep ("how much should I sleep", "what is sleep mode", "remind me
+# to go to sleep").
+sleep_question_starts = ["how", "what", "what's", "whats", "why", "when", "where", "who", "which", "should", "do", "does", "did", "is", "are", "was", "were", "will", "would", "remember", "remind", "note", "search", "google", "find", "explain", "tell", "define", "can", "could"]
+# "... <word> to sleep" is about him, not an order to her: "I need to sleep",
+# "I want to sleep", "I'm not able to sleep".
+sleep_not_after = ["need", "needs", "want", "wants", "wanted", "have", "has", "had", "going", "gonna", "used", "like", "likes", "love", "loves", "try", "trying", "tried", "able", "unable", "hard", "easy", "ready", "trouble", "help", "me", "him", "her", "them", "us", "baby", "kids", "went", "gone", "goes", "fell", "falls", "put", "puts"]
+# While AWAKE every utterance is a command, except fragments: fewer than
+# min_words words, or Whisper's no-speech probability above
+# max_no_speech_prob. These are logged as "ignored" and never sent online.
+min_words = 2
+max_no_speech_prob = 0.6
+# An utterance Whisper starts with one of these in lower case was heard from
+# the middle of a sentence (a video, someone else talking): ignored, never
+# sent online. "And open Notepad" (capital A) is still a command.
+mid_sentence_starts = ["and", "but", "or", "because", "cause", "so", "then", "which", "that", "of", "to", "with"]
+# One-word commands that are never treated as fragments.
+# F22's one-word commands were dropped as "too short"
+# when spoken ("Mute", "Unmute", "Restart"); typed they always worked.
+# "briefme" is Whisper's run-together "Brief me".
+single_word_commands = ["confirm", "cancel", "stop", "goodnight", "sleep", "hello", "hi", "hey", "thanks", "yes", "no", "mute", "unmute", "restart", "shutdown", "briefme", "ok", "okay", "cheers"]
+# A known app name alone ("Notepad") opens it -- except these
+# ("camera" means F9's webcam, never the Camera app).
+single_word_not_apps = ["camera", "settings", "google", "code", "edge"]
+# Minutes awake with nothing said before she goes back to sleep by
+# herself. 0 = never (the developer's choice).
+auto_sleep_minutes = 0
+# Typed text while she is asleep (other than a wake phrase) is discarded,
+# never logged (F15); this notice says how to wake her.
+asleep_typed_notice = "I'm asleep. Say or type 'wake up JARVIS' to wake me."
+# "Cancel" while a confirmation is pending.
+cancel_word = "cancel"
+cancelled_reply = "Cancelled."
+# Said when a pending confirmation runs out ([controller]
+# confirmation_timeout_seconds) with no confirm or cancel.
+confirmation_expired_reply = "That waited too long, so I've cancelled it. Ask again if you still want it."
+# L4 (two confirmations, e.g. F10's "forget everything"): said after the first.
+confirm_again_reply = "Say confirm once more to go ahead."
+nothing_to_cancel_reply = "There's nothing to cancel."
+# "Confirm" with nothing waiting (Section 5: she says so).
+nothing_to_confirm_reply = "Nothing to confirm right now."
+# while she waits for a confirmation, a sentence counts when its ONLY command
+# words are confirm words, or only cancel words, and every other word is in
+# confirm_filler_words. Both kinds in one sentence: she asks again. Section 5
+# is unchanged (expiry, exact action, L4's two confirms; never while SPEAKING).
+confirm_words = ["confirm", "confirmed", "yes", "yeah", "yep", "go ahead", "send it"]
+cancel_words = ["cancel", "no", "nope", "stop", "don't", "dont", "don't send it", "dont send it", "skip", "skip it"]
+confirm_filler_words = ["please", "ok", "okay", "alright", "all right", "now", "online", "it", "that", "this", "then", "thanks", "thank", "you", "sure", "and", "just", "i", "said", "the", "preview", "screen", "screenshot", "do", "so", "fine", "right", "away"]
+confirm_or_cancel_reply = "I heard both confirm and cancel. Say confirm to go ahead, or cancel to stop."
+# Anything else heard while she waits ("Confine", "can
+# find") gets this reminder (cached audio), at most once per
+# confirm_reminder_seconds.
+confirm_reminder_reply = "Say confirm or cancel."
+confirm_reminder_seconds = 10
+
+[explain]
+# F5/R13: "why did you do that?" is answered locally from the latest
+# decision record, never by Groq. A command matches if it starts with one
+# of the prefixes or is exactly one of the phrases (punctuation and a
+# leading or trailing "jarvis" ignored).
+# "why'd you",
+# "how come you did ..." and "why do you do that" too. "why do you" alone is
+# not a prefix: "why do you think the sky is blue" is a question for online.
+prefixes = ["why did you", "tell me why", "explain why", "why did u", "why'd you", "whyd you", "why would you", "how come you did", "how come you opened", "how come you went", "how come you said"]
+phrases = ["explain that", "why that", "why was that", "why do you do that", "why do you keep doing that", "why you do that", "why did that happen", "what did you do that for", "how come", "how come you did that"]
+
+[logbook]
+# R15: when each startup step finished, appended per launch
+# (numbers and step names only), for measuring startup time.
+startup_timings_path = "jarvis_data/logs/startup_timings.log"
+# F5 decision records: kept in memory for the session only (§11 #8,
+# resolved). Oldest records are dropped past this cap so a
+# long session cannot grow memory without bound (R15).
+max_records = 500
+# Raw record detail (matched action + params, candidate scores, trust
+# level, origin, raw result) for troubleshooting -- kept out of the
+# dashboard's Live Activity panel. Relative to the project root, inside
+# the data folder (excluded from Git, R18). The one exception to
+# "session only": it persists, redacted, capped below (oldest lines
+# dropped first).
+debug_log_path = "jarvis_data/logs/debug.log"
+debug_log_max_bytes = 1048576
+# R11/F15: every free-text field a decision record stores (heard,
+# understood, choice, candidates, result, verification result) is passed
+# through redact_sensitive() in jarvis/logbook/records.py. If a marker
+# below is found, the whole field is replaced with redacted_placeholder,
+# never just the matched word -- there's no reliable way to know where a
+# secret starts or ends. Case insensitive. This is a best-effort net --
+# no feature in this build actually captures passwords or Sleep Mode
+# words yet (F15 keeps them in memory only), so it has nothing real to catch
+# until those exist; it is here so the record pipeline is already safe
+# when they are added.
+#
+# Two matching modes, one list each:
+# - boundary: short words that plain substring matching would also catch
+#   inside ordinary words ("otp" inside "hotpot"/"footpath", "pin" inside
+#   "opinion"/"pineapple"/"spin"). Matched only as a whole word.
+# - phrase: longer, more distinctive words/phrases where plain substring
+#   matching stays good enough by the developer's own instruction. Known
+#   residual gap, kept rather than silently "fixed": "secret" still
+#   matches inside "secretary" -- see README.
+sensitive_markers_boundary = ["otp", "pin"]
+sensitive_markers_phrase = ["password", "passcode", "api key", "api_key", "secret", "token"]
+redacted_placeholder = "[redacted]"
+
+[speech]
+# F2 text-to-speech (pyttsx3). The voice is chosen by exact name. If it is
+# not installed, the first installed voice whose language starts with
+# fallback_voice_language_prefix is used, and the dashboard says how to
+# add Zira (decision E).
+voice_name = "Microsoft Zira Desktop"
+fallback_voice_language_prefix = "en"
+# Longest a single utterance may block before she carries on (a stuck
+# speech engine must never freeze a command forever).
+speak_timeout_seconds = 60
+# How long startup waits for the speech engine before going text-only.
+startup_timeout_seconds = 10
+# How often the speech worker pumps Windows' speech events while talking.
+pump_interval_seconds = 0.02
+# R3, decision D: said during UNDERSTANDING, right before a request
+# leaves the laptop.
+# She says this, never a provider name (developer). The
+# activity log still records where the request went (R3).
+checking_online_text = "Searching online."
+
+# F2 Stage 3: how Stop cuts speech (R8). "engine_stop" = the speech thread
+# calls pyttsx3's engine.stop() mid-utterance; "sentence" = speak one
+# sentence at a time and stop between sentences. Chosen by testing on
+# the development laptop.
+stop_method = "engine_stop"
+# After engine.stop(), Windows speech needs a moment to finish purging:
+# an utterance started straight away "finished" in 40 ms without playing
+#. 0.1 s was enough there; 0.25 s leaves margin.
+stop_settle_seconds = 0.25
+# Self-echo guard: the microphone is ignored while she speaks and for this
+# long afterwards (raised from 0.3 to 0.6 for conversation mode),
+# so she never responds to her own voice.
+echo_tail_seconds = 0.6
+# Which voice engine speaks. "kokoro" (kokoro-onnx, local neural voice) is
+# JARVIS's voice: the developer chose Kokoro af_bella after comparing
+# voice samples. "pyttsx3" (Windows SAPI, Zira)
+# is only the fallback: a missing Kokoro package or model falls back to it
+# with a missing-setup message, shown and spoken. "piper" stays optional
+# (requirements-voices.txt). Stop, the echo guard and markdown stripping
+# work the same for every engine.
+engine = "kokoro"
+# Kokoro/Piper play in blocks this long; Stop takes effect between blocks.
+neural_block_seconds = 0.05
+# Each sentence's
+# own leading and trailing quiet (samples below silence_threshold) is cut,
+# (measured: Kokoro adds about 0.03-0.05 s each side; the big gaps were the
+# sound device reopened for every sentence),
+# keeping edge_keep_seconds, and exactly sentence_gap_seconds of silence goes
+# between sentences: with both kept edges, about 0.1 s heard. One output
+# stream plays the whole line.
+sentence_gap_seconds = 0.06
+edge_keep_seconds = 0.02
+silence_threshold = 0.004
+# The first thing said is the first sentence, so a long one is cut at a
+# comma, semicolon, colon or dash and starts playing sooner -- but only
+# where the head is at least first_chunk_min_chars and the rest of the
+# sentence is at most first_chunk_tail_ratio x the head, so the rest is
+# ready before the head finishes (otherwise she would pause mid-sentence).
+# Measured on this laptop's CPU, Kokoro takes about
+# 0.3 s + 0.032 s per character to make 0.063 s of speech per character,
+# so the break-even ratio is about 2; 1.5 leaves margin.
+first_chunk_max_chars = 60
+first_chunk_min_chars = 12
+first_chunk_tail_ratio = 1.5
+# Said silently once after the model loads, so the first real line doesn't
+# pay ONNX Runtime's first-run cost.
+warm_up_text = "Ready."
+
+[speech.kokoro]
+# kokoro-onnx 0.6.1 (MIT) running Kokoro-82M (Apache-2.0), CPU only.
+# Files: scripts/download_models.py (the default run).
+model_dir = "models/kokoro"
+# Full precision (310 MB), not int8 (88 MB): measured on the development laptop
+# after warm-up, voice af_bella: "Good afternoon." took 0.81 s to
+# synthesise in full precision and 2.6-2.9 s in int8, because ONNX
+# Runtime's CPU ConvInteger kernel (75% of int8's time) has no fast path.
+# The developer chose full precision for the ~1 s first-sentence target.
+model_file = "kokoro-v1.0.onnx"
+voices_file = "voices-v1.0.bin"
+voice = "af_bella"
+speed = 1.0
+language = "en-us"
+
+[speech.piper]
+# piper-tts 1.8.0 (GPL-3.0-or-later), CPU only. Each voice has its own
+# licence (see scripts/download_models.py). Files: --voices piper.
+model_dir = "models/piper"
+voice = "en_GB-alba-medium"
+download_voices = ["en_GB-alba-medium", "en_US-amy-medium", "en_US-hfc_female-medium"]
+length_scale = 1.0
+
+[voice_cache]
+# Pre-rendered audio for her fixed lines (jarvis/speech/voice_cache.py):
+# the intro, greetings, sleep/awake replies, rude replies, mood check-ins
+# and setup messages play at once instead of after Kokoro has made the
+# first sentence. Rebuilt in the background after startup whenever the
+# text, voice or model changes. Never submitted (it rebuilds itself).
+enabled = true
+dir = "jarvis_data/voice_cache"
+# Silence added between the sentences of a cached line. Each sentence
+# Kokoro makes already ends in about 0.1 s of silence: joined with none,
+# the intro was 0.6 s LONGER than Kokoro saying it in one go.
+join_pause_seconds = 0.0
+
+[models]
+# F2 Stage 2 model files, relative to the project folder. Downloaded once
+# by scripts/download_models.py (needs internet that one time only).
+wake_word_dir = "models/openwakeword"
+wake_word_model = "hey_jarvis_v0.1.onnx"
+melspectrogram_model = "melspectrogram.onnx"
+embedding_model = "embedding_model.onnx"
+# base.en since a benchmark on the development laptop, 52 clips of real commands -- word error rate 0.8% vs 5.6%,
+# median 1.03 s per command, worst 1.42 s, same 141 MB. small.en was more
+# accurate on paper (0.4%) but took 3.3 s; distil-small.en 29%.
+whisper_dir = "models/faster-whisper-base.en"
+whisper_size = "base.en"
+
+[audio]
+# Microphone, stored by NAME, never by index (indices change when devices
+# are plugged in). Empty = the system default. A missing named device
+# falls back to the default, and she says so once.
+input_device_name = "Microphone Array (Realtek(R) Audio)"
+sample_rate = 16000
+# 1280 samples = 80 ms at 16 kHz, the frame size openWakeWord expects.
+block_size = 1280
+# Frames waiting for the wake-word thread. Full = newest frame dropped,
+# the audio callback never blocks.
+wake_queue_frames = 50
+# If the first this-many seconds of audio are all exact zeros, Windows is
+# almost certainly blocking the microphone (privacy setting).
+silent_check_seconds = 2.0
+# When a microphone's native rate is 32 or 48 kHz, JARVIS decimates it to
+# 16 kHz itself through a low-pass FIR filter with this many taps.
+decimation_filter_taps = 97
+# Each
+# way of opening a device gets at most this long before the next is tried,
+# and at most open_max_attempts ways are tried, so a stuck driver (a
+# Bluetooth headset switching profile, a device that has gone) can't hold
+# the switch for minutes.
+open_timeout_seconds = 4
+open_max_attempts = 3
+# A click in the microphone list within this long of the list opening is
+# ignored: it was meant for whatever was there before the list appeared.
+picker_click_guard_seconds = 0.5
+
+[wake_word]
+# openWakeWord score (0-1) needed to count as "Hey JARVIS". Keep 0.5 until
+# the score log below shows a better value for your microphone.
+threshold = 0.5
+# Tuning aid: when true, the highest wake-word score of each second is
+# written to debug_log_path -- one line of numbers per second (time, peak
+# score), never any audio or words. Only while she is asleep (the only
+# time the wake word listens).
+# Turned OFF (developer); it was on from so
+# wake_scores.log filled for tuning. The log file is kept. When on, each line
+# also has the second's median microphone loudness (RMS), and each asleep
+# utterance adds one timing line (seconds recorded, why it ended, seconds to
+# transcribe) -- numbers only, never audio or words (F15).
+debug_scores = false
+debug_log_path = "jarvis_data/logs/wake_scores.log"
+
+[stt]
+# faster-whisper, CPU only (no CUDA dependency).
+device = "cpu"
+compute_type = "int8"
+beam_size = 1
+vad_filter = true
+condition_on_previous_text = false
+# Spoken commands are English (her voice is English). "" would let Whisper guess the language.
+language = "en"
+# Bias Whisper toward her name (faster-whisper 1.2.1 supports both;
+# checked in its transcribe.py). hotwords is added to every 30 s window's
+# prompt; initial_prompt only to the first, and a whole sentence there can
+# make Whisper invent that sentence on noise, so it stays empty. "" = off.
+# Also the app and site names he says most ("Chad
+# GPT", "chat chip it", "Virtual Studio"), checked on noise-only clips first
+# (benchmark rule: invented text on noise must stay 0).
+hotwords = "JARVIS, Chrome, ChatGPT, VS Code, Visual Studio Code, Notepad, YouTube, Spotify, Gmail, GitHub, Priyansh"
+initial_prompt = ""
+# With app names in hotwords, a clip of just "VS Code" made the
+# model repeat "VS Code, VS Code, ..." and fall back to slower retries
+# (16-21 s). Without timestamp tokens: 1.03 s, same words. Commands are
+# short, so the timestamps were never used.
+without_timestamps = true
+# R15: the model is loaded on first use and unloaded after this long idle.
+unload_after_idle_seconds = 120
+
+[listen]
+# After the wake word: recording ends after this much quiet once speech
+# has started...
+end_silence_seconds = 1.0
+# ...or after this long in total...
+max_command_seconds = 8.0
+# ...or, if no speech starts at all, after this long (LISTEN_TIMEOUT).
+no_speech_timeout_seconds = 4.0
+# Loudness (RMS of int16 samples) above which a frame counts as speech.
+speech_rms_threshold = 500
+# Audio kept from just before speech is detected, so the first syllable of
+# an utterance isn't cut off (memory only).
+preroll_seconds = 0.4
+# Noisy microphones (a phrase took ~10 s to act):
+# if the room/mic noise sits above speech_rms_threshold, "quiet" never
+# arrives and every recording ran the full max_command_seconds. The
+# threshold therefore rises to noise_floor_factor x the recent background
+# level (the 20th-percentile loudness of the last noise_floor_seconds
+# heard outside a recording), never below speech_rms_threshold.
+noise_floor_seconds = 3.0
+noise_floor_factor = 2.0
+# ...but never above this, so a normal speaking voice always counts.
+noise_threshold_max_rms = 2500
+# While asleep only short phrases matter (wake phrases), so an asleep
+# recording is cut at this length instead of max_command_seconds.
+max_asleep_utterance_seconds = 4.0
+# Waveform bars on the dashboard (LISTENING only).
+waveform_bars = 28
+
+[hotkeys]
+# System-wide combinations, registered with Windows' RegisterHotKey (it
+# reports only these presses and never watches other keys).
+# Press-to-talk: one command without the wake word (F2).
+push_to_talk = "Ctrl+Shift+Space"
+# Stop (R8): top priority from any state. Esc in the window still works.
+stop = "Ctrl+Shift+X"
+
+[online]
+# R1: every online call. One automatic retry at most, and only after a
+# timeout or connection failure, never after a 429.
+request_timeout_seconds = 10
+max_retries = 1
+# After a 429, the service stays off this long, unless the service's own
+# retry-after header says otherwise.
+rate_limit_cooldown_seconds = 300
+# F19: set to true once you have read the online service's
+# data-use terms (Groq). Until then every R4 preview of a file says "Online
+# service terms not yet checked by you".
+terms_checked = false
+
+[length]
+# ("explain black hole in one line" got three
+# sentences): a length he asks for is told to the model AND enforced on the
+# answer (cut to whole sentences).
+one_sentence_phrases = ["in one line", "in a line", "one line", "in one sentence", "in a sentence", "one sentence", "a single sentence", "briefly", "in brief", "in short", "short answer", "in a few words", "quickly explain", "tldr", "in a nutshell", "quickly", "quick answer", "short version", "keep it short", "in one go"]
+detail_phrases = ["in detail", "in more detail", "in depth", "in full", "explain fully", "fully explain", "step by step", "the long version", "elaborate"]
+detail_sentences = 6
+# Whisper's mishearings, one letter off, after "in one"/"in a"
+# ("in one life", "in one lie") or after "in"/"and" ("and detail").
+short_words = ["line", "sentence", "liner"]
+detail_words = ["detail", "details", "depth"]
+one_sentence_instruction = "Length rule for this answer: reply in exactly ONE sentence, nothing before or after it. This replaces the first-sentence format rule."
+detail_instruction = "Length rule for this answer: the developer asked for detail, so reply in up to {count} sentences."
+
+[groq]
+# F2 Q&A model -- verified active on Groq's live /models.
+model = "openai/gpt-oss-20b"
+# gpt-oss-20b spends part of its budget on hidden reasoning before the
+# visible answer. 150 was too few: a real "give me 3 tips for studying"
+# call stopped with finish_reason "length" after 150 tokens,
+# 62 of them reasoning, cutting tip 2 mid-sentence. 600 covers low-effort
+# reasoning plus a short spoken answer; the prompt keeps answers short.
+answer_max_tokens = 600
+# Groq's reasoning_effort for gpt-oss ("low", "medium", "high"; groq SDK
+# 1.7.0 accepts it, checked on a live call). Low keeps the
+# hidden reasoning small so the budget goes to the answer.
+reasoning_effort = "low"
+# Added to every online system prompt (approved by the
+# developer): her voice starts after the first sentence has been made
+# (about 0.3 s + 0.032 s per character on this laptop), and Groq's first
+# sentences ran 68-121 characters, so she took 2.1-3.8 s to start. A short
+# direct opener starts her in about a second.
+# Placed straight after the length rule: at the end of the prompt (first
+# try) only 1 of 5 real answers followed it.
+opener_rule = "Format rule: your FIRST sentence must be eight words or fewer and directly answer the question; put every detail in the sentences after it. Example: \"Photosynthesis turns sunlight into food. Plants use...\" Never start with a long sentence. The short first sentence must be as accurate as the rest; never shorten it at the cost of being right."
+
+# F18/F19: the shared "chunked summary" (spec, Groq budget).
+# About 3,000 tokens of input per request leaves room under 8K tokens/minute.
+max_chars_per_request = 12000
+# Between chunk requests: about 2 a minute at full size.
+chunk_spacing_seconds = 35
+# So one task is at most ~48,000 characters and ~2 minutes.
+max_chunks_per_task = 4
+summary_max_tokens = 400
+
+[groq.abilities]
+# What she can and can't do, in plain words, for the system prompt (keyed
+# by feature; the prompt never shows these keys, "trust levels" or any other
+# internal name). Built or not comes from the Modules panel.
+F1 = "introduce yourself"
+F2 = "talk by voice and answer questions"
+F3 = "open apps installed on this laptop"
+F4 = "find files on this laptop by name"
+F5 = "explain why you did something"
+F6 = "show everything you do on your dashboard"
+F7 = "ask for the developer's go-ahead before anything risky"
+F8 = "read the screen, only when he says 'what's on my screen' (you can't see it yourself)"
+F9 = "look through the webcam, only when he says 'what do you see' (you can't see it yourself)"
+F10 = "remember things between sessions"
+F13 = "say clearly whenever you go online"
+F14 = "notice how the developer is feeling"
+F15 = "go to sleep and wake up when asked"
+F16 = "look up live information on the web and give the weather forecast"
+F16b = "open a Google search in his Chrome when he says 'search for' something"
+F18 = "open YouTube search results in his Chrome ('play X on YouTube') and summarise a YouTube video from its transcript when he types its link or names its topic"
+F19 = "read PDF, Word, text and CSV files on this laptop and say what is in them; summarise one online only after he checks the exact text in the preview and confirms"
+F20 = "track news topics he names ('track Indian cricket') and say new headlines on them"
+F22 = "change the volume, mute, screen brightness and Wi-Fi, and lock, restart or shut down the laptop when he asks (Wi-Fi, lock, restart and shutdown need his confirm)"
+F21 = "give a short morning briefing (date, weather, headlines, his topics) only when he says 'brief me' or 'morning briefing' -- never by itself"
+
+[rudeness]
+# F2 (decision G): whole-word, case-insensitive. She says the
+# reply and still does what was asked. Edit freely.
+words = [
+    "idiot", "stupid", "dumb", "moron", "useless", "shut up", "dumbass", "loser", "pathetic",
+    "fuck", "fucking", "fucker", "motherfucker", "mother fucker", "shit", "bitch", "bastard",
+    "asshole", "damn", "crap",
+]
+reply_text = "That wasn't a nice way to say it, but here you go."
+# When the message was nothing but rude words, there is nothing to hand over.
+reply_text_nothing_asked = "That wasn't a nice way to say it."
+# A word CONTAINING one of these roots counts as rude too.
+roots = ["fuck", "shit", "bitch", "bastard", "asshole", "cunt", "dickhead", "wanker"]
+# Real words that merely contain a root.
+root_exceptions = ["shitake", "shiitake", "scunthorpe", "cocktail"]
+# A swear used only to intensify praise ([small_talk] praise_words
+# right after it) is not rude: the compliment gets its thank-you.
+praise_intensifiers = ["fucking", "fuckin", "freaking", "frickin", "fricking", "friggin", "bloody", "effing", "damn", "damned", "hella"]
+# What is left after the insult is taken out; if only these words remain,
+# nothing was asked (she says reply_text_nothing_asked, never online).
+nothing_asked_words = ["what", "the", "you", "your", "you're", "youre", "u", "ur", "are", "is", "a", "an", "ai", "bot", "robot",
+                       "machine", "thing", "piece", "of", "so", "such", "oh", "hey", "why", "this", "that", "hell", "heck", "man",
+                       "dude", "bro", "jarvis", "and", "just", "really", "totally", "complete", "absolute", "little", "big", "go",
+                       "up", "off", "yourself", "omg", "god", "wow", "seriously", "ugh"]
+
+[setup_messages]
+# Missing-setup rule: every failure says exactly what to set
+# up and where -- never just "not available". {until} is HH:MM.
+# Spoken failures never name the provider, except the key's
+# own setting name, which the missing-setup rule needs to say what to fix.
+groq_no_key = "Searching online isn't set up yet. Add GROQ_API_KEY to the .env file in the JARVIS folder, then try again."
+groq_key_rejected = "The online search key was rejected. Check GROQ_API_KEY in the .env file in the JARVIS folder, then try again."
+groq_library_missing = "Searching online needs a library that isn't installed. Run pip install -r requirements.txt in the JARVIS folder, then restart JARVIS."
+groq_cannot_reach = "I can't reach the online search. Check your internet connection, then try again."
+groq_timeout = "The online search didn't answer in time. Check your internet connection, then try again."
+groq_rate_limited = "The free online limit is reached. Searching online is off until {until}."
+groq_cooling = "Searching online is still off until {until}, because the free limit was reached."
+groq_service_error = "The online search had a problem. Try again in a moment."
+# F20/F21: RSS feeds are read with defusedxml.
+# F22: {library} names the missing package.
+system_library_missing = "That needs the {library} package, which isn't installed. Run pip install -r requirements.txt in the JARVIS folder, then restart JARVIS."
+news_library_missing = "Reading the news needs the defusedxml package, which isn't installed. Run pip install -r requirements.txt in the JARVIS folder, then restart JARVIS."
+groq_empty = "The online search sent back an empty answer. Try asking again."
+groq_cut_off = "The online answer was cut off before the first sentence ended. Try asking again, or ask for a shorter answer."
+tts_library_missing = "Voice output isn't set up. Run pip install -r requirements.txt in the JARVIS folder, then restart JARVIS. Until then, replies show as text only."
+tts_engine_failed = "Windows speech didn't start. Check that text-to-speech works in Settings, Time and language, Speech, then restart JARVIS. Until then, replies show as text only."
+tts_no_english_voice = "No English voice is installed. Add one in Settings, Time and language, Speech, Manage voices, then restart JARVIS. Until then, replies show as text only."
+mic_none = "I can't find a microphone. Plug in your earphone mic or check Settings, System, Sound, Input, then restart JARVIS. You can still type commands."
+mic_none_mac = "I can't use a microphone. Check System Settings, Privacy and Security, Microphone, and allow Terminal (or the app you started JARVIS from), then restart JARVIS. You can still type commands."
+mic_blocked_mac = "macOS is blocking the microphone. Allow Terminal (or the app you started JARVIS from) in System Settings, Privacy and Security, Microphone, then restart JARVIS. You can still type commands."
+mic_blocked = "Windows is blocking the microphone. Turn on Settings, Privacy and security, Microphone, Let desktop apps access your microphone, then restart JARVIS. You can still type commands."
+mic_saved_missing = "Your saved microphone {name} isn't connected, so I'm using {default} instead. To change it, edit [audio] input_device_name in settings.toml."
+voice_library_missing = "Voice input isn't set up. Run pip install -r requirements.txt in the JARVIS folder, then restart JARVIS. You can still type commands."
+wake_model_missing = "The wake-word model isn't downloaded. Run python scripts\\download_models.py in the JARVIS folder, then restart JARVIS. You can still type commands."
+stt_model_missing = "The speech-to-text model isn't downloaded. Run python scripts\\download_models.py in the JARVIS folder, then restart JARVIS. You can still type commands."
+hotkey_in_use = "{combo} is already used by another app. Change [hotkeys] {key} in settings.toml, then restart JARVIS."
+hotkey_invalid = "{combo} isn't a key combination JARVIS understands. Change [hotkeys] {key} in settings.toml, for example to Ctrl+Shift+X, then restart JARVIS."
+clock_city_unknown = "I don't know the time zone for {city} yet. Add it to [clock.cities] in settings.toml, then restart JARVIS."
+clock_timezones_missing_mac = "Times in other cities aren't available on macOS yet. I can tell you the local time and date."
+clock_timezones_missing = "Times in other cities need pywin32. Run pip install -r requirements.txt in the JARVIS folder, then restart JARVIS."
+voice_engine_library_missing = "The {engine} voice needs a package that isn't installed. Run pip install -r {requirements} in the JARVIS folder, then restart JARVIS. Using the Windows voice until then."
+voice_engine_model_missing = "The {engine} voice model isn't downloaded. Run {command} in the JARVIS folder, then restart JARVIS. Using the Windows voice until then."
+screen_capture_missing = "Screen reading needs Pillow and pywin32. Run pip install -r requirements.txt in the JARVIS folder, then restart JARVIS."
+screen_text_mac = "Reading screen text needs Windows; try 'explain my screen'."
+ocr_library_missing = "Reading text on the screen needs Windows' text recognition package. Run pip install -r requirements.txt in the JARVIS folder, then restart JARVIS."
+ocr_language_missing = "Windows has no text recognition language installed. Add one in Settings, Time and language, Language and region: pick English, then Language options, and install Optical character recognition. Then restart JARVIS."
+camera_privacy_blocked_mac = "macOS is blocking the camera. Open System Settings, Privacy and Security, Camera, and turn on access for Terminal (or the app you started JARVIS from). Then try again."
+camera_not_found_mac = "I couldn't open a camera. If macOS asked, allow it in System Settings, Privacy and Security, Camera for Terminal (or the app you started JARVIS from), then try again."
+camera_privacy_blocked = "Windows is blocking the camera. Open Settings, Privacy and security, Camera, and turn on Camera access and Let desktop apps access your camera. Then try again."
+camera_library_missing = "The camera needs OpenCV. Run pip install -r requirements.txt in the JARVIS folder, then restart JARVIS."
+camera_not_found = "I couldn't find a camera. Check it's plugged in and not being used by another app, then try again."
+camera_no_frame = "The camera opened but didn't send a picture. Close any other app using it, then try again."
+camera_black = "The camera returned a black image. Check nothing is covering it and the room isn't dark, then try again."
+detector_missing = "The object detector model isn't downloaded. Run python scripts\\download_models.py in the JARVIS folder, then try again."
+playwright_missing = "Playwright isn't installed. Run pip install -r requirements.txt in the JARVIS folder, then restart JARVIS."
+browser_not_installed = "The web browser for JARVIS isn't installed. Run python -m playwright install chromium in the JARVIS folder, then try again."
+browser_real_profile = "That browser profile is a real browser's own profile, which JARVIS never uses. Set [browser] profile_dir back to jarvis_data/browser_profile in settings.toml, then try again."
+browser_profile_not_writable = "JARVIS can't write to its browser profile folder. Set [browser] profile_dir in settings.toml to a folder inside the JARVIS folder, then try again."
+voice_engine_unknown = "[speech] engine = \"{engine}\" isn't a voice JARVIS knows. Set it to pyttsx3, kokoro or piper in settings.toml, then restart JARVIS. Using the Windows voice until then."
+psutil_missing = "psutil isn't installed. Run pip install -r requirements.txt in the JARVIS folder, then restart JARVIS."
+tts_zira_missing ="The Microsoft Zira voice isn't installed, so I'm using {voice}. To add Zira: Settings, Time and language, Speech, Manage voices, Add voices, English (United States), then restart JARVIS."
+
+[clock]
+# Time and date are answered from the laptop clock (L0),
+# never online. 12-hour clock unless true.
+use_24_hour = false
+
+[clock.cities]
+# City -> Windows time-zone name (read from Windows' own registry through
+# pywin32's win32timezone, so no download). Add your own the same way.
+sydney = "AUS Eastern Standard Time"
+melbourne = "AUS Eastern Standard Time"
+brisbane = "E. Australia Standard Time"
+perth = "W. Australia Standard Time"
+adelaide = "Cen. Australia Standard Time"
+auckland = "New Zealand Standard Time"
+london = "GMT Standard Time"
+paris = "Romance Standard Time"
+berlin = "W. Europe Standard Time"
+"new york" = "Eastern Standard Time"
+chicago = "Central Standard Time"
+"los angeles" = "Pacific Standard Time"
+"san francisco" = "Pacific Standard Time"
+delhi = "India Standard Time"
+"new delhi" = "India Standard Time"
+mumbai = "India Standard Time"
+india = "India Standard Time"
+jaipur = "India Standard Time"
+dubai = "Arabian Standard Time"
+singapore = "Singapore Standard Time"
+tokyo = "Tokyo Standard Time"
+beijing = "China Standard Time"
+moscow = "Russian Standard Time"
+
+[web]
+# F16 Stage 1: live questions via Groq's browser_search tool.
+# Whether a question needs the web is decided HERE, locally, never by the
+# model: a question is "live" if it has one of these words or phrases, a
+# time word, or a year from this year on. Everything else gets the plain
+# answer (no tool, far fewer tokens). Matched as whole words, any case.
+live_words = ["score", "scores", "scored", "scorecard", "match", "matches", "result", "results", "won", "win", "wins", "winner", "who won", "fixture", "fixtures", "playing", "standings", "ladder", "news", "headline", "headlines", "latest", "update", "updates", "happening with", "going on with", "price", "prices", "stock", "stocks", "share price", "election", "release date", "live", "weather warning", "search for", "search online", "look up",
+              # "When is the next Formula One race?" was answered without a search and
+              # Groq made up a date. A schedule or a "who is the current ..." is live information.
+              "when is the next", "when's the next", "whens the next", "next race", "next game", "next match", "next episode",
+              "upcoming", "schedule", "who is the current", "who's the current", "whos the current", "current president",
+              "current prime minister", "current ceo", "current champion"]
+time_words = ["today", "tonight", "yesterday", "this week", "this weekend", "last night", "right now", "currently", "at the moment", "this morning", "this afternoon", "this evening"]
+# Free-plan budget (Groq gpt-oss-20b): 200,000 tokens/day is the published
+# figure but is unverified for the free key; 1,000 requests/day and 8,000
+# tokens/minute are confirmed by Groq's own response headers.
+# Every Groq call (live and plain) is added to a local daily ledger; live
+# searches stop once this many tokens are used today (local date).
+daily_token_budget = 150000
+# Before a live search: if Groq's last reply said fewer than this many
+# tokens are left this minute, wait for the reset when it is at most
+# max_wait_seconds away (Stop still works), otherwise say so.
+min_tokens_per_call = 4000
+max_wait_seconds = 15
+# Room for hidden reasoning plus a two-sentence answer.
+answer_max_tokens = 1500
+# Local ledger (data folder, R18): today's date and tokens used. Numbers only.
+usage_path = "jarvis_data/groq_usage.json"
+# Added to the system prompt for a live search. Keeps one search to about
+# 2,800 tokens (measured: 2,475-9,840 without it, 2,802 with it).
+# Accuracy sentence added On she said West Indies "chased"
+# a total they had actually set (they won by runs, so they batted first).
+live_instructions = "Use browser_search exactly once and open at most ONE result page. Answer in at most two short spoken sentences with no markdown, and say which website the answer comes from. Report results exactly as the source states; don't infer who batted first or chased unless the source says so. State only what the page you opened says, never details you worked out yourself. If the page gives a date for the result, say it. If the results do not answer the question, say so plainly instead of guessing. Never name the search tool or any service you used (for example Exa or Groq); name only the website the answer came from."
+# She says what was actually searched (taken from the search tool's own
+# request, not from the model's text), so a mishearing is obvious.
+searched_for_text = "I searched for {query}."
+# Never said aloud: a sentence naming one of these is dropped from an answer (R3).
+never_spoken_names = ["exa", "exa.ai", "groq", "gpt-oss", "openai/gpt-oss-20b", "browser_search"]
+# (Live Activity "read 1 page: exa.ai" for the Bitcoin
+# price): hosts of the search provider itself, never shown as a page read.
+# A real site inside such a link (?url=...) is shown instead; otherwise only
+# the count ("read 1 page").
+provider_hosts = ["exa.ai", "groq.com", "openai.com"]
+budget_used_up_text = "Today's web-search allowance is used up. I can answer without live information, or try again tomorrow."
+minute_limit_text = "The online allowance for this minute is used up. Try again in {seconds} seconds."
+nothing_found_text = "I couldn't find anything live about that."
+# Recency. On "the score of India vs West Indies" was
+# answered with a match from 1 March, with no date said. Now JARVIS -- not
+# the model -- adds today's local date to every live question, in the words
+# sent (so Live Activity shows them), and asks for the most recent result
+# when the question has one of these words.
+recency_words = ["latest", "last", "today", "tonight", "yesterday", "score", "scores", "news", "headline", "headlines", "recent", "current", "currently", "right now", "this week", "result", "results", "who won"]
+date_note = "{question} (today is {date})"
+recency_note = "{question} (most recent as of {date})"
+# The result's date is read by JARVIS from the page the model opened (its
+# first date, never a future one), within this many characters of the page.
+date_search_chars = 3000
+# Said after every live answer: the date of the result. For a recency
+# question whose result is older than stale_days, the stale line instead.
+stale_days = 7
+result_date_text = "That result is from {date}."
+stale_result_text = "The most recent result I found is from {date}."
+no_date_text = "The page I read didn't show a date for this result."
+
+[web.corrections]
+# Known Whisper mishearings, fixed before a question goes online (whole
+# words, any case). "India vs. Vendus T" was searched
+# as "India vs Vietnam". Add your own the same way.
+"vendus t" = "west indies t20"
+"vendus" = "west indies"
+"west in d's" = "west indies"
+"west indies t" = "west indies t20"
+
+[weather]
+# F16a (built): Open-Meteo, free, no key. Non-commercial
+# use only (personal/educational is allowed); data is CC BY 4.0, so the
+# credit line below is shown under every weather answer (R3's exception).
+# Limits: 600 calls/min, 5,000/hour, 10,000/day (open-meteo.com/en/terms).
+default_city = "Sydney"            # developer's choice; empty = she asks which city
+dominant_population_ratio = 10     # top result this many times bigger than any other country's -> no question
+temperature_unit = "celsius"       # or "fahrenheit"
+wind_speed_unit = "kmh"            # kmh | ms | mph | kn
+geocode_result_count = 5
+forecast_days = 2
+language = "en"
+# "Hamilton in Ontario, Hamilton in Waikato Region, or Hamilton in Ohio?":
+# at most this many places (one per country) in the question.
+max_choices = 3
+geocode_url = "https://geocoding-api.open-meteo.com/v1/search"
+forecast_url = "https://api.open-meteo.com/v1/forecast"
+# The default city's coordinates (data folder, R18), saving one call per start.
+cache_path = "jarvis_data/weather_cache.json"
+credit_line = "Weather data by Open-Meteo.com (CC BY 4.0)"
+# Commands with these words are not weather requests: questions ABOUT
+# weather go to the normal answer, and warnings are live news (F16).
+# "the difference between weather and climate, in
+# detail" asked Open-Meteo for a city called "detail".
+skip_phrases = ["explain", "define", "definition", "meaning", "how does", "how do", "why does", "why do", "what causes", "history of", "warning", "warnings", "alert", "alerts", "song", "app",
+                "difference between", "compared to", "versus", "vs", "climate", "what is weather", "what is a forecast"]
+
+# ("How hot will Melbourne be tomorrow" answered for
+# Sydney, twice). With no "in/for/at <city>", the words left after removing
+# these are tried as a place (geocoded); the default city is used only when
+# no place is named. Question, weather and time words never name a place.
+not_place_words = ["what", "whats", "what's", "how", "hows", "how's", "is", "isn't", "it", "it's", "its", "will", "would", "be", "going", "gonna",
+                   "to", "the", "a", "an", "in", "for", "at", "on", "of", "by", "near", "around", "and", "or", "so", "too", "very", "really", "much",
+                   "today", "today's", "todays", "tomorrow", "tomorrow's", "tomorrows", "tonight", "now", "right", "this", "morning", "afternoon",
+                   "evening", "night", "later", "weekend", "week", "next", "day", "days", "weather", "whether", "forecast", "temperature", "temp",
+                   "hot", "cold", "warm", "chilly", "freezing", "humid", "sunny", "cloudy", "windy", "snowy", "snowing", "snow", "stormy", "storm",
+                   "rain", "raining", "rainy", "umbrella", "reign", "does", "do", "did", "i", "we", "you", "me", "my", "need", "should", "chance",
+                   "there", "here", "outside", "out", "like", "get", "getting", "tell", "give", "check", "show", "current", "currently", "local",
+                   "any", "degrees", "celsius", "expected", "supposed", "feel", "feels", "high", "low", "max", "min", "about", "wear", "jacket",
+                   "coat", "take", "bring", "can", "could", "please", "jarvis", "up", "going", "gonna", "be", "being", "outdoors", "conditions",
+                   "lie", "s", "nice", "bad", "good", "dry", "wet", "sun", "clouds", "wind"]
+
+[weather.region_aliases]
+# A region word after the city ("weather in Leeds UK") -> country code.
+uk = "GB"
+"united kingdom" = "GB"
+britain = "GB"
+us = "US"
+usa = "US"
+america = "US"
+"united states" = "US"
+australia = "AU"
+aus = "AU"
+nz = "NZ"
+india = "IN"
+
+[weather.texts]
+# Spoken answers. Every number comes from the forecast just received.
+# {place} {temp} {feels} {now} = now; {conditions} {high} {low} {rain} = that day.
+weather_today = "In {place} it's {temp} degrees and {now}, feels like {feels}. Today: high {high}, low {low}, {rain} percent chance of rain."
+weather_tomorrow = "Tomorrow in {place}: {conditions}, high {high}, low {low}, {rain} percent chance of rain."
+rain_today = "In {place} there's a {rain} percent chance of rain today. Right now it's {now} and {temp} degrees."
+rain_tomorrow = "In {place} there's a {rain} percent chance of rain tomorrow, with {conditions} and a high of {high}."
+temperature_today = "In {place} it's {temp} degrees right now, feels like {feels}. Today's high is {high} and the low is {low}."
+temperature_tomorrow = "Tomorrow in {place}: high {high}, low {low}."
+# Failures (missing-setup rule, R14): what went wrong and what to do.
+which_city = "Which city? Say, for example, weather in Sydney, or set [weather] default_city in settings.toml."
+not_found = "I couldn't find a place called {city}. Check the spelling, or add the country, for example weather in Leeds England."
+cannot_reach = "I can't reach the weather service right now. Check your internet connection, then try again."
+rate_limited = "The free limit for weather is reached; it is off until {until}."
+cooling = "Weather is still off until {until}, because the free limit was reached."
+service_error = "The weather service sent back something I couldn't read, so I won't guess. Try again in a moment."
+
+[mood]
+# F14 (built): how upset the developer sounds, 0-1, from
+# his words only, on the laptop. A guess (R19): it never changes what she
+# does and is never saved. Set enabled = false to turn it off.
+enabled = true
+# She checks in when the score is at least this. Spec starting value 0.8;
+# set to 0.6 from the 30-sentence test (tests/test_f14_mood.py): no false check-in on any
+# of the 15 calm/joking sentences from 0.40 up (highest calm score 0.30);
+# recall 14/15 at 0.40-0.60 but only 6/15 at 0.8. 0.6 keeps that recall
+# with the widest margin above the calm ones.
+threshold = 0.6
+# At most one check-in per this many seconds (spec: 10 minutes).
+cooldown_seconds = 600
+# Scoring (jarvis/speech/mood.py): each cue below gives its weight alone;
+# more cues push the score toward 1 (noisy-OR).
+intensity_boost = 1.3          # "so annoying": an intensifier right before a cue
+max_cue_weight = 0.95          # no single cue reaches 1 on its own
+negation_factor = 0.1          # "not frustrated": a negation shortly before a cue
+negation_window = 2            # words before a cue checked for a negation
+positive_damping = 0.5         # "damn, that's impressive": any positive word halves it
+exclaim_boost = 0.05           # each "!" (typed) adds this to a non-zero score
+exclaim_max = 3
+intensifiers = ["so", "really", "very", "extremely", "totally", "absolutely", "completely", "super", "freaking", "bloody", "fucking", "too"]
+# A sweeping word up to sweeping_window words before a cue
+# ("everything is broken", "it keeps freezing") multiplies it by sweeping_boost.
+sweeping = ["everything", "nothing", "always", "keeps", "constantly", "again", "everytime", "all"]
+sweeping_boost = 1.4
+sweeping_window = 3
+negations = ["not", "no", "never", "isn't", "wasn't", "aren't", "don't", "doesn't", "didn't", "ain't", "hardly", "without"]
+positives = ["thanks", "thank you", "great job", "awesome", "love", "nice", "cool", "perfect", "amazing", "impressive", "brilliant", "haha", "ha", "lol", "lmao", "good job", "well done", "hilarious", "fun"]
+# Live Activity line (session only, never in the debug log).
+noticed_text = "noticed: you sound frustrated ({score:.2f})"
+# She asks, never tells. Short, kind, picked at random (never the same twice running).
+check_in_pool = [
+    "Sounds like a rough one. Want me to slow down or try something else?",
+    "Hey mate, is everything fine? Are you alright?",
+    "That sounded frustrating. Are you doing okay?",
+    "Rough moment? Anything I can do differently?",
+    # Was "You okay? I can keep things simple for a bit."
+    # -- a statement at the end; she asks, never tells (F14).
+    "You okay? Want me to keep things simple for a bit?",
+]
+# Straight after a check-in, these mean "I'm fine": she stops asking this session.
+fine_phrases = ["i'm fine", "i am fine", "im fine", "i'm okay", "i am okay", "i'm ok", "i'm good", "i am good", "i'm alright", "i'm all right", "all good", "i'm fine thanks", "yeah fine", "no i'm fine", "it's fine", "don't worry"]
+fine_reply = "Good to hear. I won't ask again this session."
+# He says he is tired or stressed: online answers get shorter and gentler for the session.
+gentle_triggers = ["i'm tired", "i am tired", "im tired", "i'm exhausted", "i am exhausted", "i'm stressed", "i am stressed", "im stressed", "stressed out", "i'm so tired", "i'm burnt out", "i'm burned out", "long day", "rough day", "bad day"]
+gentle_prompt = "The developer has said he is tired or stressed. Keep every reply short, calm and gentle, and don't add extra suggestions."
+
+[mood.weights]
+# Cue -> weight (0-1). Whole words, longest phrase first. Edit freely.
+failing = 0.45
+"keeps failing" = 0.6
+"driving me crazy" = 0.7
+"driving me nuts" = 0.7
+freezing = 0.35
+"so slow" = 0.45
+frustrated = 0.8
+frustrating = 0.75
+annoying = 0.6
+annoyed = 0.7
+irritating = 0.6
+irritated = 0.7
+angry = 0.8
+furious = 0.9
+"pissed off" = 0.85
+pissed = 0.7
+upset = 0.75
+stressed = 0.6
+overwhelmed = 0.65
+"fed up" = 0.85
+"sick of" = 0.75
+"tired of" = 0.6
+"had enough" = 0.8
+"give up" = 0.6
+"i give up" = 0.75
+hate = 0.6
+"hate this" = 0.75
+useless = 0.6
+stupid = 0.55
+ridiculous = 0.6
+pathetic = 0.6
+terrible = 0.5
+awful = 0.5
+worst = 0.55
+rubbish = 0.5
+garbage = 0.55
+"not working" = 0.5
+"isn't working" = 0.5
+"is not working" = 0.55
+"doesn't work" = 0.55
+"does not work" = 0.55
+"won't work" = 0.5
+"never works" = 0.65
+"nothing works" = 0.7
+"nothing ever works" = 0.7
+"nothing is working" = 0.7
+"still not" = 0.4
+broken = 0.45
+"keeps crashing" = 0.6
+"crashed again" = 0.55
+"for the hundredth time" = 0.7
+"how many times" = 0.6
+ugh = 0.55
+argh = 0.6
+"for god's sake" = 0.75
+"for fuck's sake" = 0.85
+"what the hell" = 0.65
+"what the fuck" = 0.8
+"the fuck" = 0.65
+"the hell" = 0.5
+wtf = 0.75
+fuck = 0.55
+fucking = 0.6
+shit = 0.45
+"damn it" = 0.6
+damn = 0.35
+crap = 0.4
+seriously = 0.3
+"come on" = 0.4
+"waste of time" = 0.6
+"can't believe" = 0.35
+
+[claims]
+# A typed "got to sleep" went online and Groq answered
+# "Going to sleep now. Good night." -- but she never slept. An online answer
+# may only talk; JARVIS's own commands do things. Every Groq answer is
+# checked locally for a first-person claim of an action (patterns below,
+# case-insensitive regular expressions); if one is found, the whole answer
+# is replaced. {command} is the command that really does it.
+reply_with_command = "I can't do that from here. Try saying '{command}'."
+# For actions JARVIS has no command for yet (close apps, reminders, music, volume).
+reply_not_built = "I can't do that yet."
+# An "open" claim suggests "open <app>" only when a known app or
+# site is named in what HE said ("OpenNote Pad" got "open
+# onenote"); otherwise just this.
+reply_no_command = "I can't do that from here."
+# Added to every online system prompt.
+prompt_rule = "You can only answer in words. Never say you have done, are doing or will now do any action, such as going to sleep, opening or closing apps or websites, searching, remembering something, setting a reminder or timer, playing music or changing settings. If asked to do one, say plainly that you can't do it from here. Never promise a reminder, a schedule change or a settings change, and never ask for permission or confirmation to do one. You cannot see the developer's camera, webcam or screen: never say you can see, view, watch or read them; if asked what you can see, say: Ask me 'what do you see' and I'll look. Never say where an object near him is (left, right, in front, behind, on the desk) or whether something is there or visible: you have not seen it; say: Ask me 'what do you see' and I'll look. You know nothing about the developer's own life: never state his personal facts, plans, deadlines, appointments or schedule, the weather or forecast anywhere, or the time, from your own knowledge; if asked, say you don't know."
+# "I need your permission to adjust the volume" / "I will adjust
+# the reminder". A settings claim suggests the command that really does it.
+[claims.settings_commands]
+volume = "set the volume to 50"
+sound = "set the volume to 50"
+brightness = "set the brightness to 50"
+wifi = "turn Wi-Fi off"
+"wi-fi" = "turn Wi-Fi off"
+
+[[claims.rules]]
+# ("Where is the cap? Left or right" -> Groq: "The cap is
+# on the left."). Positions or visibility of things near him, in answer to a
+# visual question: Groq never saw them. Checked only when he asked one.
+name = "sees"
+when_asked = '''\bwhere(?:'s| is| are)\b|\bleft or right\b|\bright or left\b|\bis there an?\b|\bcan you see\b|\bdo you see\b|\bin front of (?:me|you)\b'''
+pattern = '''\b(?:it|they|the [a-z][a-z ]{0,25}?|your [a-z][a-z ]{0,25}?)\s+(?:is|are|'s)\s+(?:(?:on|to|at)\s+(?:the\s+|your\s+|my\s+)?(?:left|right)|in front of|behind|next to|on (?:the|your) desk)\b|\bi (?:can )?(?:see|spot|notice) (?:a|an|the|your|it|that)\b|\b(?:yes|no),? there(?:'s| is| are)\b|\bthere(?:'s| is| are) (?:a|an|no|one|two)\b[^.?!]{0,40}\b(?:in front of you|on (?:the|your) desk|near you|next to you|beside you)'''
+reply = "I can't see that from here. Ask me 'what do you see' and I'll look."
+
+[[claims.rules]]
+name = "sleep"
+pattern = '''\b(?:(?:i'?m|i am)\s+)?going to sleep\b|\b(?:i'?m|i am|i'?ll|i will)\s+(?:go(?:ing)?\s+)?(?:off\s+)?to\s+sleep\b|\b(?:entering|switching (?:to|into)|activating)\s+sleep\s+mode\b|\bsleep mode (?:is )?(?:on|activated|enabled)\b|\b(?:i'?m|i am)\s+(?:now\s+)?(?:asleep|sleeping)\b|\b(?:(?:sure|okay|ok|of course|absolutely|yes)[,!.]?\s+)?(?:i\s+can|i'?m\s+(?:ready|able|going|about)\s+to|i\s+am\s+(?:ready|able|going|about)\s+to|i'?ll|i\s+will|let\s+me|i\s+(?:just\s+)?need\s+to)\s+(?:now\s+|go\s+ahead\s+and\s+|quickly\s+)?(?:go\s+to\s+sleep|sleep|switch\s+(?:to|into)\s+sleep)'''
+command = "go to sleep"
+
+[[claims.rules]]
+name = "open"
+pattern = '''\b(?:i(?:'ve| have)?\s+(?:just\s+)?(?:opened|launched|started up|started)\s+|(?:i'?m|i am)\s+(?:now\s+)?(?:opening|launching)\s+|(?:^|[.!]\s+)(?:opening|launching)\s+|(?:(?:sure|okay|ok|of course|absolutely|yes)[,!.]?\s+)?(?:i\s+can|i'?m\s+(?:ready|able|going|about)\s+to|i\s+am\s+(?:ready|able|going|about)\s+to|i'?ll|i\s+will|let\s+me|i\s+(?:just\s+)?need\s+to)\s+(?:now\s+|go\s+ahead\s+and\s+|quickly\s+)?(?:open|launch|start(?:\s+up)?|pull\s+up|bring\s+up|fire\s+up)\s+)(?:up\s+)?(?:the\s+|your\s+)?(?P<object>[a-z0-9][a-z0-9 .+#-]{0,30}?)(?=\s+(?:for you|now|right away|app|for|on|in)\b|[.!,]|$)'''
+command = "open {object}"
+
+[[claims.rules]]
+name = "search"
+# Only checked on plain answers: a live answer really did search.
+pattern = '''\b(?:i(?:'ve| have)?\s+(?:just\s+)?(?:searched|looked (?:it |that )?up|googled|checked online)|(?:i'?m|i am)\s+(?:now\s+)?(?:searching|looking (?:it |that )?up)|(?:(?:sure|okay|ok|of course|absolutely|yes)[,!.]?\s+)?(?:i\s+can|i'?m\s+(?:ready|able|going|about)\s+to|i\s+am\s+(?:ready|able|going|about)\s+to|i'?ll|i\s+will|let\s+me|i\s+(?:just\s+)?need\s+to)\s+(?:now\s+|go\s+ahead\s+and\s+|quickly\s+)?(?:search|look (?:it |that |this )?up|check online|google))\b'''
+command = "search for {question}"
+
+[[claims.rules]]
+name = "page"
+# A glued "OpenZorblex.com" went online and Groq said
+# "openzorblex.com loads now. The homepage shows a clean layout..." -- nothing
+# was opened. A page described as loaded or open in front of him is a claim.
+pattern = '''\b[a-z0-9-]+\.(?:com|org|net|io|ai|co|au|in|uk)\s+(?:(?:is\s+)?now\s+(?:loaded|loading|open|opened|up)|(?:loads|opens|is loading|is open|is up)\s+now|has (?:now\s+)?(?:loaded|opened))\b|\b(?:web ?site|web ?page|home ?page|page|site|tab)\s+(?:is\s+)?now\s+(?:open|opened|loaded|loading|up|showing|shows|displays)\b|\b(?:web ?site|web ?page|home ?page|page|site|tab)\s+(?:loads|is open|is loaded|has loaded|has opened|opens)\s+now\b'''
+command = ""
+reply = "I can't open web pages from here. Say 'open', then the site's name."
+
+[[claims.rules]]
+name = "see"
+# "What can you see" got "I can view your webcam feed..." online.
+pattern = '''\bi\s+(?:can|am able to|'m able to)\s+(?:also\s+)?(?:see|view|watch|read|access|look at|identify)\s+(?:what(?:'s| is)\s+on\s+)?(?:your|the)\s+(?:webcam|camera|screen|monitor|desktop|display)|\bi\s+(?:can|could)\s+see\s+(?:what(?:'s| is)\s+on\s+)?your\s+screen|\bi\s+(?:can\s+)?(?:see|view)\s+(?:you|your room|your face)\b'''
+command = ""
+reply = "I can't see anything from here. Ask me 'what do you see' and I'll look."
+
+[[claims.rules]]
+name = "close"
+pattern = '''\b(?:i(?:'ve| have)?\s+(?:just\s+)?(?:closed|shut down|quit)|(?:i'?m|i am)\s+(?:now\s+)?(?:closing|shutting down)|(?:^|[.!]\s+)closing|(?:(?:sure|okay|ok|of course|absolutely|yes)[,!.]?\s+)?(?:i\s+can|i'?m\s+(?:ready|able|going|about)\s+to|i\s+am\s+(?:ready|able|going|about)\s+to|i'?ll|i\s+will|let\s+me|i\s+(?:just\s+)?need\s+to)\s+(?:now\s+|go\s+ahead\s+and\s+|quickly\s+)?(?:close|shut\s+down|quit|exit))\b'''
+command = ""
+
+[[claims.rules]]
+name = "remember"
+pattern = '''\b(?:(?:sure|okay|ok|of course|absolutely|yes)[,!.]?\s+)?(?:i\s+can|i'?m\s+(?:ready|able|going|about)\s+to|i\s+am\s+(?:ready|able|going|about)\s+to|i'?ll|i\s+will|let\s+me|i\s+(?:just\s+)?need\s+to)\s+(?:now\s+|go\s+ahead\s+and\s+|quickly\s+)?(?:remember|keep (?:that|it|this) in mind|make a note|save (?:that|it|this))|\bi(?:'ve| have)\s+(?:saved|noted|stored|remembered|made a note)|\bgot it,?\s+i'?ll remember\b'''
+command = ""
+# F10 is built: remembering is her own local command.
+reply = "I can't do that from here. Say 'remember that', then what you want me to remember."
+
+[[claims.rules]]
+name = "reminder"
+pattern = '''\b(?:i(?:'ve| have)?\s+(?:just\s+)?set (?:a |an |the |your )?(?:reminder|timer|alarm)|(?:reminder|timer|alarm) (?:is |has been )?set\b|i'?ll remind you|(?:(?:sure|okay|ok|of course|absolutely|yes)[,!.]?\s+)?(?:i\s+can|i'?m\s+(?:ready|able|going|about)\s+to|i\s+am\s+(?:ready|able|going|about)\s+to|i'?ll|i\s+will|let\s+me|i\s+(?:just\s+)?need\s+to)\s+(?:now\s+|go\s+ahead\s+and\s+|quickly\s+)?(?:set|create|start) (?:a |an |the |your )?(?:reminder|timer|alarm)|(?:(?:sure|okay|ok|of course|absolutely|yes)[,!.]?\s+)?(?:i\s+can|i'?m\s+(?:ready|able|going|about)\s+to|i\s+am\s+(?:ready|able|going|about)\s+to|i'?ll|i\s+will|let\s+me|i\s+(?:just\s+)?need\s+to)\s+(?:now\s+|go\s+ahead\s+and\s+|quickly\s+)?remind you)'''
+command = ""
+
+[[claims.rules]]
+name = "play"
+pattern = '''\b(?:i'?m|i am)\s+(?:now\s+)?playing\s+(?:some\s+|your\s+)?(?:music|songs?|playlist|track|video)|\bnow playing\b|\bi(?:'ve| have) (?:started|put on) (?:playing|some)|(?:(?:sure|okay|ok|of course|absolutely|yes)[,!.]?\s+)?(?:i\s+can|i'?m\s+(?:ready|able|going|about)\s+to|i\s+am\s+(?:ready|able|going|about)\s+to|i'?ll|i\s+will|let\s+me|i\s+(?:just\s+)?need\s+to)\s+(?:now\s+|go\s+ahead\s+and\s+|quickly\s+)?(?:play|put on)\s+(?:some\s+|your\s+|a\s+|the\s+)?(?:music|songs?|playlist|track|video)'''
+command = ""
+
+[[claims.rules]]
+name = "change"
+# "I will adjust the reminder", "I need your permission to adjust
+# the volume", "I can adjust that for you", "Let me update your schedule".
+pattern = '''\bi\s+need\s+your\s+(?:permission|approval|confirmation)\s+to\b|\b(?:i'?ll|i\s+will|i\s+can|i\s+could|i'?m\s+going\s+to|i\s+am\s+going\s+to|i\s+shall|let\s+me|i'?d\s+be\s+happy\s+to)\s+(?:now\s+|go\s+ahead\s+and\s+|quickly\s+|also\s+)?(?:adjust|update|set|change|modify|reschedule|move|schedule|increase|decrease|lower|raise|turn\s+(?:up|down|on|off))\b|\bi(?:'ve|\s+have)\s+(?:just\s+)?(?:adjusted|updated|rescheduled|modified)\b'''
+command = "@settings"
+
+[[claims.rules]]
+name = "settings"
+pattern = '''\bi(?:'ve| have)?\s+(?:just\s+)?(?:turned|set|changed|muted|unmuted)\s+(?:the\s+|your\s+)?(?:volume|brightness|wi-?fi|sound)|\b(?:volume|brightness) (?:is |has been )?(?:now )?(?:set|turned|changed)|(?:(?:sure|okay|ok|of course|absolutely|yes)[,!.]?\s+)?(?:i\s+can|i'?m\s+(?:ready|able|going|about)\s+to|i\s+am\s+(?:ready|able|going|about)\s+to|i'?ll|i\s+will|let\s+me|i\s+(?:just\s+)?need\s+to)\s+(?:now\s+|go\s+ahead\s+and\s+|quickly\s+)?(?:turn|set|change|mute|unmute|adjust)\s+(?:up\s+|down\s+)?(?:the\s+|your\s+)?(?:volume|brightness|wi-?fi|sound)'''
+command = "@settings"
+
+[memory]
+# F10 long-term memory (the developer's decisions): she
+# remembers ONLY what he tells her to, by voice or typed command (no
+# dashboard panel); it is never sent online; "forget everything" needs two
+# confirmations (L4). Stored in the data folder, never submitted (R18).
+path = "jarvis_data/memory.json"
+max_items = 500
+# "what do you know about Y": at most this many matches, newest first.
+recall_max = 3
+# "what do you remember": this many newest are spoken; all are listed in Live Activity.
+list_spoken_max = 5
+# A correction ("actually my exam is on tuesday") updates the stored item
+# that shares at least this share of its keywords (and no other item shares
+# as many); otherwise it is stored as new.
+correction_min_overlap = 0.5
+# "actually" + fewer words than this is not a correction ("actually no").
+min_correction_words = 3
+# Dropped from the start of what was said before matching.
+lead_filler = ["please", "can", "could", "would", "will", "you", "hey", "ok", "okay", "so", "and", "also", "sir"]
+remember_prefixes = ["remember that", "remember", "don't forget that", "don't forget", "do not forget that", "do not forget", "dont forget that", "dont forget", "make a note that", "note that"]
+correction_prefixes = ["actually", "correction", "no wait", "wait actually"]
+# ("Actually, it is on Wednesday now" was stored as "it
+# is on wednesday"). A sentence opening with one of these pronouns and then
+# one of the verbs, within pronoun_window_seconds of a memory being saved or
+# recalled, is about THAT memory's subject ("it" -> "my meeting"): updated.
+# Lead words before the pronoun ("actually", "no", "oh") are dropped.
+correction_pronouns = ["it", "it's", "its", "that", "that's", "this", "this's", "it'll"]
+pronoun_verbs = ["is", "was", "has", "had", "changed", "moved", "got", "will", "now", "became", "becomes", "isn't", "wasn't", "on", "at", "in"]
+pronoun_lead_words = ["actually", "correction", "no", "nope", "wait", "oh", "sorry", "update", "but", "and", "so", "well", "um", "uh", "ok", "okay"]
+# ...and only with one of these somewhere in it ("it is cold today" is no correction).
+pronoun_signal_words = ["actually", "correction", "no", "nope", "wait", "sorry", "update", "updated", "changed", "moved", "now",
+                        "instead", "anymore", "rescheduled", "postponed", "not"]
+pronoun_window_seconds = 120
+recall_prefixes = ["what do you know about", "what do you remember about", "what did i tell you about", "what have i told you about", "do you remember anything about", "tell me what you know about", "do you know anything about"]
+list_phrases = ["what do you remember", "what do you know", "what have i told you", "what did i tell you", "what do you know about me", "list what you remember", "list your memories", "tell me what you remember"]
+forget_all_phrases = ["forget everything", "forget everything i told you", "forget everything you know", "forget all", "forget all of it", "delete all memories", "delete all your memories", "clear your memory", "wipe your memory", "erase your memory", "forget all memories"]
+# After a forget-all phrase, only these words may follow and it is
+# still everything ("forget everything you remember about me").
+forget_all_tail_words = ["you", "remember", "remembered", "know", "about", "me", "i", "told", "said", "have", "has", "ever", "stored",
+                         "saved", "of", "it", "in", "your", "memory", "memories", "that", "this", "from", "now", "please", "the", "things"]
+forget_prefixes = ["forget about", "forget that", "forget what i said about", "forget"]
+# "forget it" means "never mind", not "forget the item called it".
+not_forget_targets = ["it", "that", "this", "about it", "about that", "it then", "everything else"]
+not_corrections = ["never mind", "nevermind", "forget it", "it doesn't matter", "doesn't matter", "no thanks", "not really"]
+question_starts = ["what", "who", "when", "where", "why", "how", "which", "is", "are", "can", "could", "do", "does", "did", "will", "should"]
+# Ignored when matching an item to a topic.
+stop_words = ["a", "an", "the", "my", "your", "i", "me", "you", "is", "are", "was", "were", "be", "on", "in", "at", "to", "of", "for", "and", "or", "it", "that", "this", "about", "with", "from", "by", "as", "has", "have", "had", "will", "am", "do", "does", "did", "so", "its", "it's", "i'm", "we", "our", "they", "their", "he", "she", "his", "her", "there", "what", "anything", "something", "thing", "things", "stuff", "actually", "really", "just", "also", "then", "now", "not"]
+
+[memory.replies]
+got_it = "Got it."
+updated = "Updated."
+forgotten = "Forgotten."
+refuse = "I won't store that. It looks like {article} {type}."
+refuse_code = "That looks like a code, so I won't store it."
+remember_empty = "What should I remember? Say 'remember that', then the thing."
+full = "My memory is full, with {max} things. Ask me to forget something first."
+write_failed = "I couldn't save that to my memory file. Check that the jarvis_data folder in the JARVIS folder isn't read-only, then try again."
+recall_item = "You told me {text}. You said that on {date}."
+recall_none = "You haven't told me anything about {topic}."
+# "when is my presentation due" with nothing stored -- never online.
+personal_none = "You haven't told me about your {thing}."
+personal_told_none = "You haven't told me about your {thing}. Say 'remember that', then what you want me to remember."
+list_none = "You haven't asked me to remember anything yet."
+list_one = "I remember 1 thing:"
+list_head = "I remember {count} things. The newest {shown}:"
+forget_none = "I don't have anything about {topic} to forget."
+forget_many_prompt = "I'll forget all {count} things about {topic}: {items} Say confirm, or cancel."
+forget_pick = "I have {count} things about {topic}: {items} Which one should I forget? Say the number."
+forget_out_of_range = "There are only {count} on the list. Say a number from 1 to {count}."
+forget_gone = "That was already forgotten."
+forget_all_empty = "There's nothing to forget. My memory is empty."
+forget_all_prompt = "This deletes all {count} things I remember, and it can't be undone. Say confirm, then confirm again."
+forget_all_done = "Forgotten. I don't remember anything now."
+corrupt_recovered = "My memory file was damaged. I kept it as {name} and restored the last good copy, with {count} things."
+corrupt_lost = "My memory file was damaged and there was no good copy, so I started a new one. The damaged file is kept as {name}."
+
+[memory.never_store]
+# R11 + the developer's F10 decision: never stored, and the refused text is
+# never written anywhere (redact_sensitive uses the same check).
+# ("remember my card number 411 111 111 111" was
+# stored -- it fails the Luhn check): a word below plus ANY digit, number
+# word or value ("is hunter2") is refused, whatever the digits are. The word
+# alone is fine: "remember to change my password" is stored. Luhn is still
+# used for a bare card number with no word.
+password_words = ["password", "passwords", "passcode", "passphrase", "api key", "secret key", "private key", "access token", "recovery code", "backup code", "seed phrase", "login details"]
+pin_words = ["pin", "pin code", "pin number", "cvv", "cvc", "security code", "otp", "one-time code", "one time code", "verification code", "2fa code"]
+card_words = ["card number", "card numbers", "card no", "credit card", "debit card", "card details"]
+bank_words = ["account number", "bank account", "bsb", "iban", "routing number", "sort code", "swift code"]
+# A value follows one of the words above: "<word> is <something>",
+# "<word> to <something>", "<word>: <something>".
+value_link_words = ["is", "are", "was", "were", "to", "=", ":"]
+# Spoken digits count as digits ("my pin is four three two one").
+number_words = ["zero", "oh", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
+# An ID number needs its keyword AND a token with at least this many digits.
+min_id_digits = 5
+# A word this many letters from a one-word keyword above (bin/pen/pinn -> pin,
+# passward -> password), with a number of at least fuzzy_min_digits digits,
+# is refused. Never shorter than the keyword ("in" is not "pin").
+fuzzy_max_distance = 1
+fuzzy_min_digits = 4
+# "my <word> 44555": a bare 4-8 digit number right after "my <word>" (or
+# "my <word> is") looks like a code and is refused -- unless the word is one
+# of these, whose numbers are ordinary.
+code_words = ["code", "combination", "combo", "lock", "passkey"]
+code_min_digits = 4
+code_max_digits = 8
+safe_number_words = ["room", "flat", "apartment", "unit", "house", "street", "postcode", "zip", "flight", "train", "bus", "platform",
+                     "gate", "seat", "year", "birthday", "anniversary", "order", "ticket", "booking", "budget", "score", "rent",
+                     "salary", "price", "total", "weight", "height", "steps", "target", "goal", "class", "course", "subject", "unit",
+                     "office", "desk", "level", "floor", "building", "block", "car", "bike", "model", "version", "invoice", "receipt"]
+
+# The ID words that are refused with any digit or value, like the words
+# above (the bare words in id_words need a long number, so "find my
+# passport" and "my passport is in the drawer" are fine).
+[memory.never_store.id_number_words]
+passport = ["passport number", "passport no"]
+licence = ["licence number", "license number", "licence no", "license no"]
+tax_file = ["tax file number", "tfn"]
+medicare = ["medicare number", "medicare card number"]
+
+[memory.never_store.type_names]
+password = "password"
+pin = "PIN"
+card = "card number"
+bank = "bank account number"
+code = "code"
+
+[memory.never_store.id_words]
+passport = ["passport"]
+licence = ["licence", "license", "driver's licence", "driver's license", "drivers licence", "drivers license"]
+tax_file = ["tax file number", "tfn"]
+medicare = ["medicare"]
+social_security = ["social security", "ssn"]
+government_id = ["id number", "national id", "citizenship number", "visa number", "immi card", "birth certificate number"]
+
+[memory.never_store.id_words_types]
+passport = "passport number"
+licence = "driver's licence number"
+tax_file = "tax file number"
+medicare = "Medicare number"
+social_security = "social security number"
+government_id = "government ID number"
+
+[browser]
+# F16b (the developer's decision): "search X", "google X" and
+# "open chrome and search X" open a Google search for X in his own Chrome --
+# exactly like opening a website (open_url, L1), with no automation and
+# nothing read back. JARVIS's own Playwright browser, its Chromium download
+# and DuckDuckGo are removed.
+search_url = "https://www.google.com/search?q={query}"
+# F16's last resort: a LIVE question whose online search failed in one of
+# these ways opens the Google results in Chrome instead. A missing key,
+# today's allowance, a rate limit or no internet keep their own answers
+# (spec F16).
+fallback_on = ["TIMEOUT", "SERVICE_ERROR", "EMPTY_RESPONSE", "NO_RESULTS", "CUT_OFF"]
+# "google chrome", "google docs" etc. are apps and sites, not searches.
+# Dropped from the front of a query ("search google's best pizza" -> "best pizza").
+query_lead_words = ["google's", "googles", "google", "on google", "in google", "with google", "for"]
+google_not_queries = ["chrome", "docs", "drive", "maps", "sheets", "slides", "calendar", "photos", "meet", "classroom", "translate", "earth", "keep", "mail", "news", "play", "play store", "chrome browser"]
+
+# What counts as a search (regular expressions over the cleaned command,
+# which has no commas and is lower case; `query` is what is searched).
+[[browser.commands]]
+pattern = '''(?:open|launch|start|run)(?: up)?(?: google)? chrome(?: browser)?(?: and)?(?: then)? (?:search|google|look up)(?: for| up)? (?P<query>.+)'''
+
+[[browser.commands]]
+pattern = '''search(?: for)? (?P<query>.+?) (?:on|in) (?:the )?(?:web|internet|google|chrome)'''
+
+[[browser.commands]]
+# "look up the meaning of serendipity online" searched for "... online".
+# Only "look up": "search for how to stay online" keeps its last word.
+pattern = '''look up (?P<query>.+?) online'''
+
+[[browser.commands]]
+pattern = '''(?:search|look up)(?: on)?(?: the)? (?:web|internet|google|online)(?: for)? (?P<query>.+)'''
+
+[[browser.commands]]
+pattern = '''(?:search google|google search)(?: for)? (?P<query>.+)'''
+
+[[browser.commands]]
+pattern = '''search(?: for)? (?!.* on (?:my|the) screen$)(?P<query>.+)'''
+
+[[browser.commands]]
+pattern = '''google(?: for)? (?P<query>.+)'''
+
+[browser.replies]
+searching = "Searching Google for {query} in Chrome."
+fallback_opened = "I couldn't get a quick answer, so I've opened the results in Chrome."
+no_chrome = "I'd search Google for {query} in Chrome, but Chrome isn't installed. Install Google Chrome, then try again."
+no_chrome_fallback = "I couldn't get a quick answer, and Chrome isn't installed, so I can't open the results. Install Google Chrome, then try again."
+
+[screen]
+# F8 screen awareness (the developer's F8 decisions).
+# Passive capture only (read pixels), local OCR with Windows' own engine,
+# protected windows blacked out before anything uses the image, the image
+# in memory only and freed after use.
+#
+# PROTECTED windows (§11 #12, resolved; edit freely): a window
+# whose title contains any of these words (case-insensitive), or whose
+# program is one of protected_processes, is blacked out, and its title is
+# never spoken or sent. She cannot see a sensitive page inside an ordinary
+# browser tab whose title doesn't match.
+protected_title_words = ["1password", "bitwarden", "keepass", "lastpass", "bank", "banking", "netbank", "commbank", "paypal", "inprivate", "incognito", "private browsing", "private window", "windows security"]
+protected_processes = ["1password.exe", "bitwarden.exe", "keepass.exe", "keepassxc.exe", "lastpass.exe", "sechealthui.exe", "securityhealthhost.exe"]
+# "explain my screen": the image model (verified on Groq's live /models on
+# The only free-tier model with image input; each image counts
+# as 2048 input tokens; at most 3 images per request). Empty string = send
+# the OCR text only, with the normal text model.
+vision_model = "qwen/qwen3.8-27b"
+# The image as sent: at most this many pixels on its long side, JPEG. A
+# 1920x1080 screen becomes 1280x720, about 30-150 KB.
+send_max_side = 1280
+send_jpeg_quality = 70
+send_max_text_chars = 3000
+# The developer has not checked Groq's data-use terms yet: until this is
+# true the preview says "Online service terms not yet checked by you".
+online_terms_checked = false
+instructions = "You are looking at a screenshot of the developer's Windows screen, with the text read from it and his question. Explain what is on the screen and answer the question: text, images, charts, code, errors and the user interface. A solid black rectangle is a private window hidden on purpose by JARVIS: ignore it completely, don't mention it, never guess what is in it, and never ask anyone to remove, lift or uncover it; describe everything else. A screenshot is one moment; don't claim to know what happens over time."
+# Added to the instructions with the real count of hidden windows.
+covered_note_none = "In this screenshot no window was blacked out: dark areas are just dark windows or backgrounds; describe them normally."
+covered_note_some = "In this screenshot {count} private window(s) were blacked out on purpose; ignore those black rectangles."
+# The summary ("what's on my screen").
+summary_windows = 4
+summary_lines = 3
+min_line_chars = 4
+# ("123456789_1111222€ X +. Ask Gemini. claude.ai/chat/7488..."
+# was read out). A browser's own UI -- the tab strip, address bar and
+# bookmarks -- is the top browser_ui_band_px of its window and is never read;
+# neither are URLs, long numbers or IDs, file-name noise, or lines that are
+# mostly symbols. Lines holding only a ui_phrases entry are skipped too.
+browser_processes = ["chrome.exe", "msedge.exe", "firefox.exe", "brave.exe", "opera.exe", "vivaldi.exe", "arc.exe"]
+browser_ui_band_px = 120
+ui_phrases = ["ask gemini", "new tab", "search google or type a url", "bookmarks", "all bookmarks", "relaunch to update", "reading list", "customize chrome", "sign in", "share", "extensions", "update", "open in app", "copilot", "new chat", "share chat", "upgrade"]
+# A line must keep this many real words (3+ letters) after the noise is gone.
+min_real_words = 2
+# ...and at least this share of its characters must be letters or spaces.
+min_letter_share = 0.6
+line_max_chars = 80
+title_max_chars = 60
+# "where is it" right after a find is answered from that find
+# for this many seconds (while nothing else was looked at since).
+follow_up_seconds = 120
+# (she read "(22) YouTube - Google Chrome and
+# Program Manager" and nothing else). Never read or named: the desktop, the
+# taskbar and JARVIS's own window (window class, exact title or program).
+system_window_classes = ["Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "NotifyIconOverflowWindow", "Windows.UI.Core.CoreWindow"]
+system_window_titles = ["Program Manager", "JARVIS", "Flet"]
+own_processes = ["flet.exe"]
+# A window counts as showing when at least this share of it is on top.
+min_visible_share = 0.05
+# The summary's first lines: at most this many characters.
+first_lines_max_chars = 160
+# The one sentence said about the window in front -- the line with
+# the most real words (3+ letters) of its first front_scan_lines, at least
+# front_min_words of them, and not a list of names (more than
+# front_max_capital_share of its words capitalised, or comma-separated scraps).
+front_scan_lines = 12
+front_min_words = 4
+front_max_capital_share = 0.6
+read_phrases = ["what's on my screen", "what is on my screen", "whats on my screen", "read my screen", "read the screen", "read what's on my screen", "read what is on my screen", "what's on the screen", "what is on the screen", "look at my screen", "what can you see on my screen", "what do you see on my screen", "what's open on my screen", "what windows are open"]
+explain_phrases = ["explain my screen", "explain the screen", "explain what's on my screen", "explain what is on my screen", "help me with this", "what am i looking at", "can you help me with this", "explain this"]
+# Shown when the Sensor Array's Screen Capture row is clicked or hovered.
+row_click_text = "Screen capture runs only when you ask, for example 'what's on my screen'. Protected windows are blacked out and nothing is saved."
+# "is the word Marigold on my screen" went online.
+find_pattern = '''(?:find|look for|search for|is there|is|are there|can you see|do you see|see)(?: the word| the text| the name| the number)? (?P<word>.+?) (?:on|anywhere on) (?:my|the) screen|does (?:my|the) screen (?:say|show|have|contain)(?: the word| the text)? (?P<word2>.+)'''
+# Whisper's "explain" before "my screen" ("Splend my screen",
+# "X-Link, My screen"). Words within two letters of "explain" count too.
+explain_mishearings = ["splend", "splendid", "x-link", "xlink", "xplain", "splain", "explane", "explaine", "explained", "explains", "explaining", "ex plain", "x plain", "explin", "splen", "aplain"]
+
+# How she names a window: by program (lower case), the title's ending to cut
+# ("Report - Word" -> "Report") and the words to use. {name} is what is left
+# of the title. kind "document" / "page" / "app" picks the opener of the
+# first lines below. A program not listed is named by its title.
+[[screen.apps]]
+processes = ["chrome.exe"]
+cut = [" - Google Chrome"]
+phrase = "{name} open in Chrome"
+app = "Chrome"
+kind = "page"
+
+[[screen.apps]]
+processes = ["msedge.exe"]
+# The first cut has an invisible zero-width space (U+200B) before "Edge": Edge
+# really puts one in its window titles, so it must be cut exactly as written.
+cut = [" - Microsoft​ Edge", " - Microsoft Edge", " - Personal - Microsoft Edge", " - Work - Microsoft Edge"]
+phrase = "{name} open in Edge"
+app = "Edge"
+kind = "page"
+
+[[screen.apps]]
+processes = ["firefox.exe"]
+cut = [" — Mozilla Firefox", " - Mozilla Firefox"]
+phrase = "{name} open in Firefox"
+app = "Firefox"
+kind = "page"
+
+[[screen.apps]]
+processes = ["winword.exe"]
+cut = [" - Word", " - Microsoft Word", " - Compatibility Mode"]
+phrase = "a Word document called {name}"
+app = "Word"
+kind = "document"
+
+[[screen.apps]]
+processes = ["excel.exe"]
+cut = [" - Excel", " - Microsoft Excel"]
+phrase = "an Excel spreadsheet called {name}"
+app = "Excel"
+kind = "document"
+
+[[screen.apps]]
+processes = ["powerpnt.exe"]
+cut = [" - PowerPoint", " - Microsoft PowerPoint"]
+phrase = "a PowerPoint called {name}"
+app = "PowerPoint"
+kind = "document"
+
+[[screen.apps]]
+processes = ["acrord32.exe", "acrobat.exe", "sumatrapdf.exe", "foxitpdfreader.exe"]
+cut = [" - Adobe Acrobat Reader (64-bit)", " - Adobe Acrobat Reader", " - Adobe Acrobat", " - SumatraPDF", " - Foxit PDF Reader"]
+phrase = "a PDF called {name}"
+app = "a PDF reader"
+kind = "document"
+
+[[screen.apps]]
+processes = ["notepad.exe"]
+cut = [" - Notepad"]
+phrase = "a Notepad file called {name}"
+app = "Notepad"
+kind = "document"
+
+[[screen.apps]]
+processes = ["code.exe"]
+cut = [" - Visual Studio Code"]
+phrase = "VS Code with {name}"
+app = "VS Code"
+kind = "document"
+
+[[screen.apps]]
+processes = ["explorer.exe"]
+cut = [" - File Explorer"]
+phrase = "File Explorer showing {name}"
+app = "File Explorer"
+kind = "app"
+
+
+# What kind of window was blacked out, for the log (never its title).
+[screen.protected_categories]
+"password manager" = ["1password", "bitwarden", "keepass", "lastpass"]
+banking = ["bank", "banking", "netbank", "commbank", "paypal"]
+"private browsing" = ["inprivate", "incognito", "private browsing", "private window"]
+"Windows Security" = ["windows security", "sechealthui", "securityhealthhost"]
+
+[screen.replies]
+you_have = "You have {windows}."
+minimised = "Also open but minimised: {titles}."
+behind = "Behind them, so I can't read it: {titles}."
+starts_document = "The document starts with: {lines}."
+starts_page = "The page says: {lines}."
+starts_app = "It says: {lines}."
+# "what's on my screen" names only the window in front.
+front = "You're looking at {app} showing {title}."
+front_one = "You're looking at {name}."
+front_unnamed = "a window with no name"
+step_capturing = "capturing the screen (protected windows covered first)"
+step_covered = "covered {count} protected window(s)"
+step_freed = "screen image freed"
+step_freed_full = "full-size screen image freed"
+windows = "I can see {count} windows: {titles}."
+one_window = "I can see one window: {title}."
+no_windows = "I can't see any windows I'm allowed to read."
+covered_one = "I covered one protected window."
+covered_many = "I covered {count} protected windows."
+first_lines = "The first lines of text say: {lines}."
+no_text = "I couldn't read any text on it."
+# Always a name --
+# "in Chrome - JARVIS feature list" ([[screen.apps]] app, then the title), or
+# "on your screen" when the window has no usable name.
+found_in = "Yes, I can see '{word}' in {title}."
+found = "Yes, I can see '{word}' on your screen."
+# "where is it" right after a find, answered from that find (locally).
+found_where = "'{word}' is in {title}, {area} of the screen."
+found_where_unnamed = "'{word}' is {area} of the screen."
+area_top = "near the top"
+area_bottom = "near the bottom"
+area_middle = "in the middle"
+not_found = "I can't see '{word}' on your screen."
+capture_failed = "I couldn't capture the screen just now. Try again in a moment."
+nothing_to_send = "I couldn't capture anything to send."
+confirm_prompt = "I've put exactly what I'd send on the dashboard: a smaller picture of your screen with private windows blacked out, and the text I read from it. This will be sent online. Say confirm to send it, or cancel."
+confirm_prompt_text_only = "I've put exactly what I'd send on the dashboard: the text I read from your screen. This will be sent online. Say confirm to send it, or cancel."
+sending = "Sending it online."
+preview_changed = "What I'd send changed after the preview, so I sent nothing. Ask me again."
+send_failed = "I couldn't get an answer about your screen."
+no_answerer = "Explaining the screen needs the online service, which isn't set up."
+
+[camera]
+# F9 webcam vision (the developer's F9 decisions). Camera
+# through OpenCV (opencv-python-headless 5.0.0.93, Apache-2.0: no GUI module,
+# so it can never open a window). Frames stay in memory, never saved.
+# The camera to try first; other indices are probed only inside a capture
+# the developer asked for (never at startup), up to max_index_probe.
+index = 0
+max_index_probe = 5
+# Exposure settles over the first frames: these are read and thrown away.
+warmup_frames = 10
+# After
+# the warm-up, look_frames frames are kept (look_frame_gap frames skipped
+# between them) and an object is named only if it was found in at least
+# look_min_votes of them, at min_confidence or more. The live camera votes
+# over its last look_frames detections the same way.
+look_frames = 3
+look_frame_gap = 2
+look_min_votes = 2
+# A frame darker than this (mean brightness of 0-255) is a failed capture
+# (R12: retry once, then say the camera returned a black image).
+min_mean_brightness = 8
+# Object detector: YOLOX-S (Megvii, Apache-2.0; 36 MB), the 80 COCO types,
+# on onnxruntime. Downloaded by scripts/download_models.py. Chosen over
+# YOLOX-Tiny on YOLOX's own sample photo: S said dog 0.91 in
+# 115 ms; Tiny said cat 0.56 / dog 0.54 for the same dog in 31 ms.
+detector_dir = "models/yolox"
+detector_file = "yolox_s.onnx"
+detector_url = "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_s.onnx"
+detector_input_size = 640
+# 0.45 -> 0.6. A steady object below sure_confidence is said as
+# "I think I see ..." rather than "I can see ...".
+min_confidence = 0.6
+sure_confidence = 0.75
+nms_iou = 0.45
+# Two different labels on (nearly) the same box: only the more confident is kept.
+duplicate_iou = 0.7
+# OpenCV capture backend: "dshow" (DirectShow, opens fastest on Windows),
+# "msmf" (Media Foundation) or "any".
+backend = "dshow"
+# At most this many objects are named in one answer.
+max_objects_spoken = 5
+# Price table (the developer keeps it by hand; §11 #5): object, low, high,
+# currency, date_updated, source. Rough figures, always spoken as a range.
+price_table = "jarvis/settings/prices.csv"
+# Older than this, or no date: she still gives the range but says it is out of date.
+price_stale_months = 12
+# "turn on the camera" (continuous, L3): a small preview for the Webcam Feed
+# panel, capped low for R15, and detections in Live Activity every few seconds.
+stream_fps = 5
+stream_preview_width = 320
+stream_jpeg_quality = 70
+stream_detect_seconds = 5
+stream_start_timeout_seconds = 6
+generic_brand_words = ["brand", "model", "make", "manufacturer", "maker", "company"]
+look_phrases = ["what do you see", "what can you see", "look through the camera", "look through the webcam", "what's this", "what is this", "what's on my desk", "what is on my desk", "take a look", "have a look", "look at this", "what am i holding"]
+price_phrases = ["how much is this", "how much is that", "how much does this cost", "how much does that cost", "how much is this worth", "what's this worth", "what is this worth"]
+stream_on_phrases = ["turn on the camera", "turn the camera on", "switch on the camera", "switch the camera on", "keep the camera on", "camera on", "turn on the webcam", "turn the webcam on"]
+stream_off_phrases = ["turn off the camera", "turn the camera off", "switch off the camera", "switch the camera off", "camera off", "stop the camera", "turn off the webcam", "turn the webcam off",
+                      # Whisper's "10 of the camera" / "turn of the camera"
+                      "10 of the camera", "ten of the camera", "turn of the camera", "turn the camera of", "10 off the camera", "ten off the camera", "turnoff the camera"]
+# Shown when the Sensor Array's Camera row is clicked or hovered.
+row_click_text = "The camera is used only when you ask: 'what do you see' (one look) or 'turn on the camera' (live preview, after you confirm). Frames are never saved."
+
+# The detector is dropped from memory after this long unused (R15).
+unload_after_idle_seconds = 120
+
+# Follow-ups about the last look, answered locally for this
+# many seconds after it ("how much does the cellphone cost", "where is the
+# refrigerator"). After that she says [camera.replies]
+# look_first; a follow-up never goes online.
+follow_up_seconds = 120
+# Phrases that also mean "look": "what's in front of you".
+look_more_phrases = ["what's in front of you", "what is in front of you", "what's in front of the camera", "what is in front of the camera", "what do you see now", "what can you see now"]
+# A box centre in the left or right third of the frame is "on the left/right".
+side_share = 0.34
+
+# What he may call a detected object -> the detector's label.
+[camera.brand_words]
+# Brand or model words -> the object the detector would call it.
+iphone = "cell phone"
+samsung = "cell phone"
+galaxy = "cell phone"
+pixel = "cell phone"
+android = "cell phone"
+oneplus = "cell phone"
+xiaomi = "cell phone"
+nokia = "cell phone"
+motorola = "cell phone"
+huawei = "cell phone"
+macbook = "laptop"
+thinkpad = "laptop"
+dell = "laptop"
+lenovo = "laptop"
+asus = "laptop"
+hp = "laptop"
+ipad = "laptop"
+# "brand" and "model" were mapped to "cell phone", so
+# "What brand is it?" after a look at a fridge said no phone was seen. Generic
+# words ([camera] generic_brand_words) mean the main object of the last look.
+"which phone" = "cell phone"
+"what phone" = "cell phone"
+"what kind of phone" = "cell phone"
+
+[camera.synonyms]
+phone = "cell phone"
+cellphone = "cell phone"
+"cell phone" = "cell phone"
+"mobile phone" = "cell phone"
+mobile = "cell phone"
+smartphone = "cell phone"
+iphone = "cell phone"
+fridge = "refrigerator"
+television = "tv"
+"tv screen" = "tv"
+sofa = "couch"
+mug = "cup"
+"water bottle" = "bottle"
+monitor = "tv"
+computer = "laptop"
+notebook = "laptop"
+bike = "bicycle"
+"push bike" = "bicycle"
+motorbike = "motorcycle"
+puppy = "dog"
+doggy = "dog"
+kitten = "cat"
+kitty = "cat"
+telly = "tv"
+"coffee cup" = "cup"
+coffee = "cup"
+tea = "cup"
+table = "dining table"
+desk = "dining table"
+plant = "potted plant"
+glasses = "wine glass"
+
+[camera.follow_up_names]
+# ("How much is the water" after a look at a bottle went
+# online). In a follow-up about the last look, these words mean one of these
+# objects -- whichever the last look saw (else the first).
+water = ["bottle", "cup", "wine glass"]
+drink = ["bottle", "cup", "wine glass"]
+juice = ["bottle", "cup"]
+soda = ["bottle", "cup"]
+screen = ["tv", "laptop"]
+display = ["tv", "laptop"]
+phone = ["cell phone"]
+iphone = ["cell phone"]
+
+[camera.replies]
+where = "From the camera's view, the {thing} is {side}."
+where_unknown = "I didn't see a {thing} in my last look. Ask me 'what do you see' and I'll look again."
+# A follow-up ("left or right", "how much is it") is always
+# answered locally; with no look in the last follow_up_seconds, this.
+look_first = "Ask me 'what do you see' first."
+follow_up_nothing = "I didn't see anything I know in my last look. Ask me 'what do you see' and I'll look again."
+side_left = "on the left"
+side_right = "on the right"
+side_middle = "in the middle"
+seen = "I can see {things}."
+# Objects steady across the frames but scored below [camera]
+# sure_confidence.
+seen_unsure = "I think I see {things}."
+seen_mixed = "I can see {sure}, and I think I see {unsure}."
+nothing = "I can't make out anything I know. I recognise everyday things like laptops, cups, phones and chairs."
+looks_like = "That looks like {thing}."
+price = "Roughly {low} to {high}."
+price_dated = "Those are rough figures from {when}."
+price_stale = "Those are rough figures from {when}, so they're out of date."
+price_undated = "Those figures have no date, so they may be out of date."
+price_unknown = "That looks like {thing}, but I don't have a price for it."
+price_only_person = "I can only see a person, not an object I can price."
+price_nothing = "I can't tell what that is, so I can't give a price."
+stream_prompt = "The camera will stay on with a live preview on the dashboard until you say turn off the camera. Frames are never saved. Say confirm to turn it on, or cancel."
+stream_on = "The camera is on. The preview is on the dashboard. Say turn off the camera when you're done."
+stream_off = "Camera off."
+already_on = "The camera is already on."
+# "Is it iPhone" -- the detector knows objects, never brands.
+brand_unknown = "I can tell it's {thing}, but not the brand or model."
+# "Tell me about the cell phone" after a look: what, where, a rough price.
+tell_about = "In my last look I saw {thing}. {where} {price}"
+# "Tell me about that person" -- F9 has no face recognition.
+no_faces = "I can only say what objects I see, not who someone is."
+# "The cell phone you just saw".
+just_saw = "Yes, in my last look I saw {thing}. {where}"
+# "What can you see" while the camera is on, before its first detection.
+stream_no_look_yet = "The camera is on, but it hasn't finished looking yet. Ask me again in a moment."
+already_off = "The camera is already off."
+stream_running = "The camera is already on. Say turn off the camera first, then ask again."
+
+
+[topics]
+# F20 topic monitor (built). "track <topic>", "stop tracking
+# <topic>", "what am I tracking" are local and L0 (edit_topic_list); topics are
+# his own words (C5), so checking them online needs no preview. Checked ONLY
+# when he asks ("any news on my topics", or a briefing he asked for) -- never
+# on a wake (removed), a timer or a background thread.
+store_path = "jarvis_data/topics.json"
+max_topics = 20
+max_topic_chars = 60
+# URL hashes remembered per topic (oldest dropped first). Headline text is
+# never stored.
+max_seen_per_topic = 200
+max_headlines_per_topic = 3
+# A spoken headline is cut to this many words (whole words, no "...").
+title_max_words = 14
+# Phrases, as said after the interpreter's clean-up. Longest first is applied
+# in code. "start tracking X", "track X" ...
+add_prefixes = ["start tracking", "keep track of", "track", "monitor topic", "follow the news on", "follow the news about", "follow news on"]
+remove_prefixes = ["stop tracking", "stop monitoring", "stop following", "untrack", "don't track", "do not track", "dont track"]
+list_phrases = ["what am i tracking", "what i am tracking", "what topics am i tracking", "which topics am i tracking", "what are my topics", "list my topics", "show my topics", "what topics do i track", "what do i track"]
+check_phrases = ["any news on my topics", "any news about my topics", "any news for my topics", "check my topics", "check my topics now", "check topics", "news on my topics", "what's new on my topics", "whats new on my topics", "any updates on my topics", "anything new on my topics"]
+# ("Track, Indian Cricut" was added next to "indian
+# cricket"; "stop tracking indian gritted" found nothing). A topic said is the
+# same as a tracked one when it has as many words and each word is within
+# fuzzy_max_distance edits of the tracked word after sound-alike letters are
+# folded together (c/k/g/q, t/d, b/p, f/v, s/z) and doubled letters collapsed,
+# with the same first sound. Words shorter than fuzzy_min_chars must match exactly.
+fuzzy_max_distance = 2
+fuzzy_min_chars = 4
+sound_alike = ["ckgq", "td", "bp", "fv", "sz"]
+# "stop tracking A and B": each part is removed.
+list_separators = ["and", "plus", "also", "as well as"]
+# "stop tracking" alone asks which topic; his answer counts for this long.
+which_seconds = 30
+# Not a topic: "track it", "stop tracking that".
+not_topics = ["it", "that", "this", "them", "my topics", "topics", "everything", "my order", "my phone", "my location"]
+
+[topics.replies]
+added = "Tracking {topic}."
+already = "I'm already tracking {topic}."
+full = "You're tracking {max} topics, the most I keep. Say stop tracking and a topic first."
+too_long = "That topic is too long. Keep it under {max} characters."
+removed = "Stopped tracking {topic}."
+removed_and_missing = "Stopped tracking {topic}. I'm not tracking {missing}."
+which_out_of_range = "There are only {count} topics. Say a number from 1 to {count}."
+which_remove = "You're tracking {topics}. Which one should I stop tracking?"
+not_tracked = "I'm not tracking {topic}."
+list_none = "You aren't tracking any topics. Say track and a topic, for example track Indian cricket."
+list_one = "You're tracking one topic: {topics}."
+list_many = "You're tracking {count} topics: {topics}."
+check_none = "You aren't tracking any topics yet. Say track and a topic first."
+new_one = "1 new headline on {topic}: {titles}."
+new_many = "{count} new headlines on {topic}: {titles}."
+nothing_new_one = "Nothing new on {topics}."
+nothing_new_all = "No new headlines on your topics."
+some_failed = "I couldn't check {topics}."
+cannot_reach = "I can't reach the news right now. Check your internet connection, then try again."
+cooling = "The free limit for news is reached; it is off until {until}."
+service_error = "The news service didn't answer properly, so I couldn't check your topics. Try again in a few minutes."
+write_failed = "I couldn't save your topics. Check that the JARVIS folder isn't read-only, then try again."
+corrupt = "Your topics file was damaged, so I kept it as {name} and started a new list."
+sensitive = "I won't send that online. It looks like a {kind}."
+
+[news]
+# F20/F21 news, through the shared online helper (R1: timeout, one retry,
+# 429 cooldown). Parsed with defusedxml. Terms checked (spec
+# F20 "Source"): Bing News search RSS allows use "within an RSS aggregator
+# for your personal, non-commercial use"; BBC (terms 15, v1.8) allows
+# personal use credited "BBC News"; NPR allows its content feeds "on your
+# personal site or application". The Guardian's terms forbid any automated
+# program for reading its content, so its feed is not used.
+# topic_source: "bing" = one Bing News search feed per topic (default);
+# "feeds" = the general feeds below, filtered by the topic's words.
+topic_source = "bing"
+topic_search_url = "https://www.bing.com/news/search?q={query}&format=rss"
+# Older headlines are not "new", whatever the feed returns.
+topic_max_age_hours = 48
+# Between two topic requests (Stop is checked in between).
+request_spacing_seconds = 1.5
+general_feed_urls = [
+    "https://feeds.bbci.co.uk/news/rss.xml",
+    "https://feeds.npr.org/1001/rss.xml",
+]
+# Shown and spoken as the source of a general headline (BBC's terms ask for
+# the "BBC News" credit).
+feed_names = { "feeds.bbci.co.uk" = "BBC News", "feeds.npr.org" = "NPR" }
+
+[briefing]
+# F21 morning briefing (built). Runs ONLY when he asks
+# ("brief me", "morning briefing", "give me my briefing" -- on_demand_phrases
+# below, or the router's "briefing" intent). The first-wake
+# trigger (and its enabled flag, state file and standing approval) was
+# removed -- nothing starts by itself. Order: greeting -> date -> weather
+# (F16a, the default city) -> top general headlines -> F20's topic headlines.
+# Stop or "skip" ends it at once. Never a recap of earlier sessions (F10).
+# Spoken length cap, estimated from word count: about 30 seconds.
+max_spoken_seconds = 30
+words_per_second = 2.5
+max_general_headlines = 3
+# A spoken general headline is cut to this many words.
+general_title_max_words = 10
+include_weather = true
+include_headlines = true
+include_topics = true
+# "briefme", "brief man": how Whisper heard "Brief me" in the e2e run (F3).
+on_demand_phrases = ["brief me", "briefme", "brief man", "morning briefing", "my morning briefing", "give me my briefing", "give me the briefing", "give me my morning briefing", "daily briefing", "my briefing", "what's my briefing", "whats my briefing", "run the briefing", "run my briefing",
+                      # "Catch me up!" asked "Did you mean...?"; "What's my daily update?" was a memory question.
+                      "catch me up", "give me the rundown", "the rundown", "daily update", "my daily update", "what's my daily update",
+                      "whats my daily update", "what is my daily update", "give me my daily update", "morning update", "my morning update",
+                      "quick briefing", "a quick briefing", "news briefing", "give me a briefing"]
+# Typed while the briefing is running: ends it like Stop. (Spoken "skip"
+# while she asks to confirm is a cancel word, [conversation] cancel_words.)
+skip_words = ["skip", "skip it", "skip the briefing", "skip briefing"]
+
+[briefing.texts]
+greeting_early_morning = "Good morning, {name}."
+greeting_morning = "Good morning, {name}."
+greeting_afternoon = "Good afternoon, {name}."
+greeting_evening = "Good evening, {name}."
+greeting_late_night = "Hello, {name}."
+date = "It's {weekday} the {day} of {month}."
+headlines = "In the news: {titles}."
+offline = "I can't reach the internet for weather and news right now."
+weather_failed = "I couldn't get the weather."
+headlines_failed = "I couldn't get the headlines."
+no_city = "No default city is set, so no weather."
+cooling = "The free limit for news is reached until {until}, so no headlines."
+more_in_activity = "More in Live Activity."
+
+[system]
+# F22 system settings (built). No terminal command anywhere
+# (R10): pycaw (volume, mute), screen-brightness-control (brightness),
+# WinRT Windows.Devices.Radios (Wi-Fi), user32 LockWorkStation (lock), and
+# pywin32 InitiateSystemShutdown / AbortSystemShutdown (restart, shutdown,
+# never force). Every change is read back afterwards (R12).
+volume_step_percent = 10
+brightness_step_percent = 10
+# A spoken "up by N" larger than this is refused before policy.
+max_step_percent = 50
+volume_tolerance_percent = 1
+# Panels move in steps, so a read-back this close counts as done.
+brightness_tolerance_percent = 5
+verify_timeout_seconds = 5.0
+verify_poll_interval_seconds = 0.25
+# The OS's own countdown before a restart/shutdown; Stop or "cancel" aborts it.
+shutdown_grace_seconds = 30
+# The message Windows shows during the countdown.
+shutdown_message = "JARVIS: restart or shutdown requested by voice. Save your work."
+
+[system.replies]
+volume_now = "Volume is now {value}%."
+muted = "Muted."
+unmuted = "Unmuted. Volume is {value}%."
+already_muted = "It's already muted."
+brightness_now = "Brightness is now {value}%."
+troubleshooting = "Troubleshooting the issue."
+mismatch_volume = "I set the volume to {target}%, but it's reading {actual}%."
+mismatch_brightness = "I set the brightness to {target}%, but it's reading {actual}%."
+mismatch_mute = "I tried to {verb} it, but Windows still reports it {state}."
+out_of_range = "{what} goes from 0 to 100."
+step_too_big = "That's a big jump. Change it by at most {max} at a time."
+no_speakers = "No speakers found. Plug in or turn on your speakers, then try again."
+brightness_unsupported = "Brightness isn't controllable on this display."
+brightness_unsupported_mac = "Changing brightness isn't supported on macOS."
+wifi_prompt_on = "Turn Wi-Fi on? Say confirm."
+wifi_prompt_off = "Turn Wi-Fi off? Every online feature stops working until it's back on. Say confirm."
+wifi_now = "Wi-Fi is now {state}."
+wifi_already = "Wi-Fi is already {state}."
+wifi_refused = "Windows doesn't allow JARVIS to switch Wi-Fi on this laptop."
+wifi_no_radio = "I can't find a Wi-Fi radio on this laptop."
+wifi_mismatch = "I asked Windows to turn Wi-Fi {target}, but it's still {actual}. A hardware switch or a policy may be holding it."
+lock_prompt = "Lock the screen? You'll need to sign in again. Say confirm."
+lock_requested = "Screen lock requested."
+lock_failed = "Windows didn't lock the screen."
+restart_prompt = "Restart in {seconds} seconds. Apps won't be force-closed. Unsaved work in another app may stop the restart. Say confirm twice."
+shutdown_prompt = "Shut down in {seconds} seconds. Apps won't be force-closed. Unsaved work in another app may stop the shutdown. Say confirm twice."
+restart_requested = "Restart requested. It starts in {seconds} seconds unless an app stops it. Say stop to cancel."
+shutdown_requested = "Shutdown requested. It starts in {seconds} seconds unless an app stops it. Say stop to cancel."
+privilege_refused = "Windows didn't allow me to {verb}, so no {noun} was requested."
+cancelled = "{Noun} cancelled."
+too_late = "It's too late to cancel: Windows is already {doing}."
+nothing_scheduled = "There's no restart or shutdown to cancel."
+
+[youtube]
+# Captions shorter than this are not summarised
+# (Groq made a summary up from a few words); she says so instead.
+min_transcript_chars = 200
+# F18 YouTube tools (built). "play X on YouTube" opens
+# YouTube's search results for X in his own Chrome (F3's open_url, L1, no
+# automation). "summarise this video <link>" / "summarise the YouTube video
+# about X" fetches the public transcript (youtube-transcript-api 1.2.4: an
+# unofficial library that reads YouTube's own web endpoints) and summarises
+# it online (L0: internet content, not laptop data, so no R4 preview; R3 still
+# applies). URLs are never spoken.
+search_url_template = "https://www.youtube.com/results?search_query={query}"
+preferred_transcript_languages = ["en"]
+spoken_summary_sentences = 3
+# "about X": one web search for his words; the video is taken only from the
+# search tool's own result links (never a link the model wrote).
+find_query_template = "YouTube video about {topic}"
+find_instructions = "Use browser_search exactly once to find a YouTube video that matches the request. Do not open any page. Reply with one short sentence."
+summary_instructions = "You are given part of a YouTube video's transcript. Summarise what the video says in at most four plain sentences, for reading aloud. Say only what the transcript says; if it is unclear or garbled, say so."
+combine_instructions = "You are given summaries of consecutive parts of one YouTube video's transcript. Combine them into one summary of at most four plain sentences, for reading aloud. Say only what they say."
+play_patterns = ["play (?P<what>.+?) on (?:youtube|you tube)", "(?:search|look up) (?:youtube|you tube) for (?P<what>.+)", "(?:youtube|you tube) (?P<what>.+)", "play (?P<what>.+?) (?:youtube|you tube)",
+                 # "Hello, free music on YouTube" (Whisper's "play"), "sad music on YouTube"
+                 "(?:(?:hello|hi|hey|ok|okay|so|and) )?(?:free|pray|pre|prey|played|plays|lay|clay|flay|pay) (?P<what>.+?) on (?:youtube|you tube)",
+                 "(?:(?:hello|hi|hey|ok|okay|so|and) )?(?P<what>(?:[a-z']+ ){0,3}(?:music|songs?|playlist)) on (?:youtube|you tube)"]
+
+[youtube.replies]
+searching = "Searching YouTube for {query} in Chrome."
+no_chrome = "I'd search YouTube for {query} in Chrome, but Chrome isn't installed. Install Google Chrome, then try again."
+which_video = "Which video? Type its link after summarise this video, or say summarise the YouTube video about, and the topic."
+bad_link = "I couldn't read a YouTube video in that link. Check it and try again."
+not_found = "I couldn't find a YouTube video about {topic}."
+no_transcript = "This video has no transcript, so I can't summarise it."
+too_short = "That video doesn't have enough captions to summarise."
+unavailable = "That video is unavailable or private, so I can't get its transcript."
+unplayable = "That video can't be played here, so I can't get its transcript."
+age_restricted = "That video is age-restricted, so I can't get its transcript."
+blocked = "YouTube is blocking transcript requests from this connection right now. Try again later."
+po_token = "YouTube now needs a check this tool can't do, so its transcripts are unavailable."
+cannot_reach = "I can't reach YouTube right now. Check your internet connection, then try again."
+youtube_error = "YouTube didn't answer properly, so I couldn't get the transcript. Try again in a few minutes."
+rate_limited = "YouTube's limit for transcripts is reached; it is off until {until}."
+auto_captions = "These are auto-generated captions, so names and terms may be wrong."
+coverage = "I summarised the first {covered} of {total} minutes."
+summary_failed = "I got the transcript, but couldn't summarise it. {reason}"
+
+[file_processor]
+# (after the "summarize my resume" list, "Find number one"
+# searched files for 'number one' and "will summarize file one" said "can't find
+# file one"). While that list waits, these lead words are dropped before the
+# pick is read, so "find number one" / "summarize file one" pick item 1.
+pick_lead_words = ["will", "well", "we'll", "can", "could", "you", "please", "now", "ok", "okay", "so", "and", "just", "then",
+                   "find", "summarise", "summarize", "summary", "sum", "up", "read", "open", "show", "do", "get", "use", "go", "with",
+                   "jarvis", "let's", "lets", "i", "want", "would", "like", "for", "me", "of", "on"]
+# F19 file processor (built). "summarise <file>", "what's in
+# <file>", "read <file>" (and "how many pages / words / rows in <file>").
+# The file is found through F4's index (the same numbered pick list), must
+# pass the R9 read check, and is read LOCALLY: PDF (pypdf), DOCX
+# (python-docx), TXT/MD, CSV (standard library). Only "summarise" goes
+# online, after the R4 preview of the exact text and an L3 confirm. JARVIS
+# never writes to his files; there is no conversion.
+extensions = [".pdf", ".docx", ".txt", ".md", ".csv"]
+# Words that say he means a file even if the index has nothing by that name.
+file_words = ["file", "document", "pdf", "docx", "word document", "text file", "csv", "spreadsheet", "notes"]
+max_file_bytes = 20000000
+# Only the first this many pages of a PDF are read.
+max_pdf_pages = 200
+# Below this many characters per page on average: a scanned PDF.
+min_chars_per_page = 30
+max_csv_rows_sent = 200
+text_encodings_tried = ["utf-8", "utf-8-sig", "cp1252"]
+# The R4 copy of exactly what will be sent; deleted after sending, on
+# cancel/Stop/expiry, and at startup (leftovers).
+temp_dir = "jarvis_data/tmp"
+max_text_preview_chars = 200000
+# "read <file>": this many words are read aloud.
+read_aloud_words = 60
+summary_instructions = "You are given part of a document the developer chose to send. Summarise it in at most four plain sentences, for reading aloud. Say only what the text says."
+combine_instructions = "You are given summaries of consecutive parts of one document. Combine them into one summary of at most four plain sentences, for reading aloud. Say only what they say."
+spoken_summary_sentences = 3
+
+[file_processor.replies]
+which_file = "I found {count} files called that. Which one? Say its number."
+not_found = "I can't find a PDF, Word, text or CSV file called {name}."
+index_not_ready = "I'm still building the file index. Try again in a moment."
+protected = "I can't read {name}: it's in a protected folder."
+too_big = "{name} is {size} MB, over the 20 MB I read. Pick a smaller file."
+unsupported = "I can read PDF, Word, text and CSV files, not {ext} files."
+unreadable = "I couldn't read {name}: {reason}."
+scanned = "{name} looks like a scanned PDF; I can't read scanned pages."
+encrypted = "{name} is password-protected, so I can't read it. I never ask for or handle passwords."
+empty = "{name} has no text I can read."
+overview_pdf = "{name} has {pages} and about {words} words."
+overview_text = "{name} has about {words} words."
+overview_csv = "{name} has {rows} rows and {columns} columns: {headers}."
+pages_truncated = "I read only the first {max} pages."
+offer_summary = "Say summarise {name} to have it summarised online."
+read_start = "Here's how {name} starts: {text}"
+read_more = "That's the start."
+which_part = "This file is long. Which part: the start, the middle, or the end?"
+confirm_prompt = "Here's exactly what would be sent online from {name}: {chars} characters. Check the preview, then say confirm, or cancel."
+preview_changed = "The text changed after you confirmed; please check the preview again. Nothing was sent."
+summary_failed = "I couldn't summarise {name}. {reason}"
+cooling = "Summaries online are off until {until}, because the free limit was reached. I can still tell you what's in the file."
+shown_instead = "(about {name}: the file's content isn't shown here)"

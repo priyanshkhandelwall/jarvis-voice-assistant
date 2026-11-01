@@ -1,0 +1,38 @@
+# Virtual environment (created by setup.bat)
+venv/
+
+# Python caches
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Backup copies
+*.bak
+
+# Personal data created at run time -- never committed.
+jarvis_data/
+
+# Secrets -- never committed. Copy .env.example to .env instead.
+.env
+
+# Downloaded models (scripts/download_models.py) -- large, re-downloadable.
+models/
+
+# End-to-end test output, created when the e2e tests run.
+tests/e2e/results/
+
+# Previous Git history backup
+.git_backup/
+
+# Generated test evidence and historical backups
+test_runs/
+docs/backups/
+.git_backup/
+
+# Historical and duplicate submission files
+submission/
+docs/archive/
+docs/spec-backups/
+docs/reports/
+docs/screenshots/
+docs/voice-samples/

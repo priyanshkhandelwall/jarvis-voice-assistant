@@ -1,0 +1,20 @@
+# OPTIONAL extra voice for JARVIS. Not needed to run JARVIS: her voice is
+# Kokoro af_bella, in requirements.txt (the developer's choice, 23 October
+# 2026). Install this only to try [speech] engine = "piper" in
+# jarvis/settings/settings.toml:
+#
+#   venv\Scripts\python.exe -m pip install -r requirements-voices.txt
+#   venv\Scripts\python.exe scripts\download_models.py --voices piper
+#
+# Without it (or without the voice files), JARVIS uses Kokoro or Zira and
+# says exactly what to run (missing-setup rule, R14).
+#
+# Versions and licences checked on PyPI / the source repository, 23 Oct
+# 2026. Free. GPL is fine for this personal, educational project.
+
+-r requirements.txt
+
+# Piper: piper-tts (GPL-3.0-or-later), with pathvalidate (MIT). Each Piper
+# voice has its own licence (scripts/download_models.py lists them).
+piper-tts==1.8.0
+pathvalidate==3.3.1
